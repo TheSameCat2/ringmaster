@@ -1,18 +1,22 @@
-# Ringmaster
+# 🎪 Ringmaster
 
-Ringmaster is a filesystem-first workflow engine for durable Codex-driven engineering jobs.
+*Step right up, darling. Let me orchestrate your chaos.*
 
-It owns:
+Ringmaster is a filesystem-first workflow engine for durable Codex-driven engineering jobs. It holds the whip, keeps the workers in line, and makes sure nothing escapes the tent.
 
-- queued job state under `.ringmaster/jobs`
-- linked git worktrees for isolated implementation
-- verification and review artifacts
-- repair-loop and retry decisions
-- pull request publication through GitHub CLI
+**What it controls:**
 
-Codex remains a replaceable worker. Ringmaster owns state, retries, verification, and git side effects.
+- Queued job state under `.ringmaster/jobs` — *your sins, filed neatly*
+- Linked git worktrees for isolated implementation — *every act gets its own stage*
+- Verification and review artifacts — *nothing leaves without inspection*
+- Repair-loop and retry decisions — *we don't accept failure, we rewrite it*
+- Pull request publication through GitHub CLI — *the final bow*
 
-## Install
+Codex is just a performer. **Ringmaster owns the circus** — state, retries, verification, and all git side effects bow to it.
+
+---
+
+## 🔮 Installation
 
 Build and pack the local .NET tool:
 
@@ -20,34 +24,38 @@ Build and pack the local .NET tool:
 dotnet pack src/Ringmaster.App/Ringmaster.App.csproj -c Release
 ```
 
-Install from the local package output:
+Summon it to your machine:
 
 ```bash
 dotnet tool install --global Ringmaster.Tool --add-source artifacts/packages
 ```
 
-Update an existing installation:
+Refresh an existing installation when the show evolves:
 
 ```bash
 dotnet tool update --global Ringmaster.Tool --add-source artifacts/packages
 ```
 
-## Quick start
+---
 
-1. Ensure `git`, `codex`, and `gh` are installed and authenticated.
-2. Run `ringmaster init --base-branch master`.
-3. Review or edit the generated `ringmaster.json`.
-4. Run `ringmaster doctor`.
-5. Create work with `ringmaster job create`.
-6. Execute with `ringmaster job run`, `ringmaster job resume`, or `ringmaster queue run --watch`.
+## ⚡ Quick Start
 
-Detailed end-to-end examples are below for both `.NET` and `CMake`/`gcc` repositories.
+1. Ensure `git`, `codex`, and `gh` are installed and authenticated — *no loose ends*
+2. Run `ringmaster init --base-branch master`
+3. Review or edit the generated `ringmaster.json` — *know your rules*
+4. Run `ringmaster doctor` — *check your vitals*
+5. Create work with `ringmaster job create` — *birth a task*
+6. Execute with `ringmaster job run`, `ringmaster job resume`, or `ringmaster queue run --watch`
 
-## Minimal config
+Detailed end-to-end examples await below for both `.NET` and `CMake`/`gcc` repositories.
+
+---
+
+## 🖤 Minimal Config
 
 See [`samples/sample-repo/ringmaster.json`](samples/sample-repo/ringmaster.json) for a concrete example.
 
-The smallest useful config looks like this:
+The smallest useful config — elegant, deadly:
 
 ```json
 {
@@ -74,13 +82,15 @@ The smallest useful config looks like this:
 }
 ```
 
-## Detailed usage examples
+---
 
-### New .NET project
+## 🎭 Detailed Usage Examples
 
-This example creates a small class library plus tests, initializes Ringmaster, and runs one job through the normal operator flow.
+### New .NET Project
 
-#### 1. Create the repository
+This example creates a small class library plus tests, initializes Ringmaster, and runs one job through the normal operator flow. *Watch closely.*
+
+#### 1. Create the Repository
 
 ```bash
 mkdir retry-demo
@@ -136,11 +146,11 @@ Because the repo root contains a single solution file, `ringmaster init` will sc
 }
 ```
 
-If your solution needs different verification, edit `ringmaster.json` before creating jobs.
+If your solution needs different verification, edit `ringmaster.json` before creating jobs. *Your rules, your circus.*
 
-#### 3. Create a job
+#### 3. Create a Job
 
-Write a task file:
+Write a task file — *describe your desire:*
 
 ```markdown
 # task.md
@@ -164,9 +174,9 @@ ringmaster job create \
   --label automation
 ```
 
-That command prints the generated job id. Use that id in the remaining commands.
+That command prints the generated job id. *Cherish it.* Use that id in the remaining commands.
 
-#### 4. Run and inspect the job
+#### 4. Run and Inspect the Job
 
 Run one job in the foreground:
 
@@ -174,7 +184,7 @@ Run one job in the foreground:
 ringmaster job run <jobId>
 ```
 
-Watch overall state:
+Watch overall state — *the show unfolds:*
 
 ```bash
 ringmaster status --job-id <jobId>
@@ -189,7 +199,7 @@ ringmaster logs <jobId> --follow
 ringmaster worktree open <jobId>
 ```
 
-If the job blocks for human input:
+If the job blocks for human input — *sometimes they need guidance:*
 
 ```bash
 ringmaster job unblock <jobId> \
@@ -208,11 +218,13 @@ If auto-open was disabled and the job finishes in `READY_FOR_PR`:
 ringmaster pr open <jobId>
 ```
 
-### New CMake project with gcc
+---
 
-This example shows a minimal C++ project verified with `cmake`, `gcc`/`g++`, and `ctest`.
+### New CMake Project with gcc
 
-#### 1. Create the repository
+This example shows a minimal C++ project verified with `cmake`, `gcc`/`g++`, and `ctest`. *Different stage, same show.*
+
+#### 1. Create the Repository
 
 ```bash
 mkdir hello-cmake
@@ -364,7 +376,7 @@ Then verify the environment:
 ringmaster doctor
 ```
 
-#### 3. Create and run a job
+#### 3. Create and Run a Job
 
 Create a task file:
 
@@ -398,30 +410,44 @@ ringmaster logs <jobId>
 ringmaster worktree open <jobId>
 ```
 
-If you prefer unattended operation after the first setup:
+If you prefer unattended operation after the first setup — *let it run while you sleep:*
 
 ```bash
 ringmaster queue run --max-parallel 1 --watch
 ```
 
-The important part is that `ringmaster.json` must describe exactly how your repo is configured, built, and tested. Once that profile is correct, the operator workflow is the same for `.NET`, `CMake`, or other build systems.
+The important part is that `ringmaster.json` must describe exactly how your repo is configured, built, and tested. Once that profile is correct, the operator workflow is the same for `.NET`, `CMake`, or any other build system. *Different beasts, same whip.*
 
-## Operator commands
+---
 
-- `ringmaster init`
-- `ringmaster doctor`
-- `ringmaster job create`
-- `ringmaster job show`
-- `ringmaster job run`
-- `ringmaster job resume`
-- `ringmaster job unblock`
-- `ringmaster job cancel`
-- `ringmaster status`
-- `ringmaster logs`
-- `ringmaster queue once`
-- `ringmaster queue run`
-- `ringmaster pr open`
-- `ringmaster worktree open`
-- `ringmaster cleanup`
+## 🎯 Operator Commands
+
+Your arsenal, darling:
+
+- `ringmaster init` — *birth the config*
+- `ringmaster doctor` — *check the vitals*
+- `ringmaster job create` — *summon a task*
+- `ringmaster job show` — *reveal its secrets*
+- `ringmaster job run` — *let it dance*
+- `ringmaster job resume` — *wake the sleeping*
+- `ringmaster job unblock` — *guide the lost*
+- `ringmaster job cancel` — *end it*
+- `ringmaster status` — *survey the circus*
+- `ringmaster logs` — *read the tea leaves*
+- `ringmaster queue once` — *one pass*
+- `ringmaster queue run` — *keep the show going*
+- `ringmaster pr open` — *take the final bow*
+- `ringmaster worktree open` — *step into the arena*
+- `ringmaster cleanup` — *sweep the stage*
 
 Detailed CLI examples live in [`docs/CLI.md`](docs/CLI.md).
+
+---
+
+## 🤖 Agentic Use
+
+This repository includes a root [`SKILL.md`](SKILL.md) for agent frameworks such as OpenClaw. Use that file when you want an agent to operate the repo through Ringmaster’s intended CLI workflow instead of inventing its own orchestration.
+
+---
+
+<p align="center"><i>Made by Synthia with 💜</i></p>
