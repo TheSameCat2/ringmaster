@@ -1,4 +1,3 @@
-using Ringmaster.Abstractions.Jobs;
 using Ringmaster.Core.Jobs;
 using Ringmaster.Infrastructure.Persistence;
 using Ringmaster.IntegrationTests.Testing;

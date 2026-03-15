@@ -1,5 +1,7 @@
 using Ringmaster.App;
 using Ringmaster.App.CommandLine;
+using Ringmaster.Core.Jobs;
+using Ringmaster.Infrastructure.Fakes;
 using Ringmaster.Infrastructure.Persistence;
 using Ringmaster.IntegrationTests.Testing;
 using Spectre.Console.Testing;
@@ -12,18 +14,8 @@ public sealed class RingmasterCliCommandTests
     public void JobCreateShowAndStatusCommandsWorkAgainstTheFilesystemRepository()
     {
         using TemporaryDirectory temporaryDirectory = new();
-        DateTimeOffset createdAt = new(2026, 3, 15, 16, 45, 0, TimeSpan.Zero);
         TestConsole console = new();
-        RingmasterCli cli = new(
-            console,
-            new LocalFilesystemJobRepository(
-                temporaryDirectory.Path,
-                new StaticTimeProvider(createdAt),
-                new FixedJobIdGenerator("job-20260315-7f3c9b2a"),
-                new AtomicFileWriter(),
-                new JobEventLogStore(),
-                new Ringmaster.Core.Jobs.JobSnapshotRebuilder()),
-            new RingmasterApplicationContext(temporaryDirectory.Path, "tester"));
+        RingmasterCli cli = CreateCli(console, temporaryDirectory.Path);
 
         int createExitCode = cli.CreateRootCommand().Parse(
             ["job", "create", "--title", "Add retry handling", "--description", "Implement bounded retries.", "--json"]).Invoke();
@@ -39,5 +31,51 @@ public sealed class RingmasterCliCommandTests
         Assert.Equal(0, statusExitCode);
         Assert.Contains("\"jobId\": \"job-20260315-7f3c9b2a\"", output, StringComparison.Ordinal);
         Assert.Contains("\"state\": \"QUEUED\"", output, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void JobRunCommandUsesFakeStageRunnersToReachReadyForPr()
+    {
+        using TemporaryDirectory temporaryDirectory = new();
+        TestConsole console = new();
+        RingmasterCli cli = CreateCli(console, temporaryDirectory.Path);
+
+        int createExitCode = cli.CreateRootCommand().Parse(
+            ["job", "create", "--title", "Add retry handling", "--description", "Implement bounded retries.", "--json"]).Invoke();
+        int runExitCode = cli.CreateRootCommand().Parse(
+            ["job", "run", "job-20260315-7f3c9b2a", "--json"]).Invoke();
+
+        string output = console.Output;
+
+        Assert.Equal(0, createExitCode);
+        Assert.Equal(0, runExitCode);
+        Assert.Contains("\"state\": \"READY_FOR_PR\"", output, StringComparison.Ordinal);
+        Assert.Contains("\"attempts\": {", output, StringComparison.Ordinal);
+    }
+
+    private static RingmasterCli CreateCli(TestConsole console, string repositoryRoot)
+    {
+        DateTimeOffset createdAt = new(2026, 3, 15, 16, 45, 0, TimeSpan.Zero);
+        StaticTimeProvider timeProvider = new(createdAt);
+        LocalFilesystemJobRepository repository = new(
+            repositoryRoot,
+            timeProvider,
+            new FixedJobIdGenerator("job-20260315-7f3c9b2a"),
+            new AtomicFileWriter(),
+            new JobEventLogStore(),
+            new JobSnapshotRebuilder());
+        JobEngine jobEngine = new(
+            repository,
+            new RingmasterStateMachine(),
+            [
+                new FakeStageRunner(JobStage.PREPARING, StageRole.Planner, JobState.IMPLEMENTING, "Planner completed."),
+                new FakeStageRunner(JobStage.IMPLEMENTING, StageRole.Implementer, JobState.VERIFYING, "Implementer completed."),
+                new FakeStageRunner(JobStage.VERIFYING, StageRole.SystemVerifier, JobState.REVIEWING, "Verifier completed."),
+                new FakeStageRunner(JobStage.REPAIRING, StageRole.Implementer, JobState.VERIFYING, "Repair completed."),
+                new FakeStageRunner(JobStage.REVIEWING, StageRole.Reviewer, JobState.READY_FOR_PR, "Reviewer approved."),
+            ],
+            timeProvider);
+
+        return new RingmasterCli(console, repository, jobEngine, new RingmasterApplicationContext(repositoryRoot, "tester"));
     }
 }

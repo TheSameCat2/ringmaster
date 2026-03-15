@@ -1,4 +1,4 @@
-using Ringmaster.Abstractions.Jobs;
+using Ringmaster.Core.Jobs;
 
 namespace Ringmaster.Infrastructure.Persistence;
 

@@ -222,14 +222,14 @@ Implement the orchestrator state machine and a fully local end-to-end path using
 
 ### Work packets
 
-* [ ] **P2.1** Implement the explicit state machine and transition rules.
-* [ ] **P2.2** Implement `IStateMachine` transition validation.
-* [ ] **P2.3** Implement `JobEngine` orchestration for one job.
-* [ ] **P2.4** Add fake stage runners for planner, implementer, verifier, and reviewer.
-* [ ] **P2.5** Implement per-run folders under `runs/`.
-* [ ] **P2.6** Implement stage transition events and current-run tracking in `STATUS.json`.
-* [ ] **P2.7** Implement `job run <jobId>` using fake runners only.
-* [ ] **P2.8** Add integration tests for happy-path lifecycle and invalid transition rejection.
+* [x] **P2.1** Implement the explicit state machine and transition rules.
+* [x] **P2.2** Implement `IStateMachine` transition validation.
+* [x] **P2.3** Implement `JobEngine` orchestration for one job.
+* [x] **P2.4** Add fake stage runners for planner, implementer, verifier, and reviewer.
+* [x] **P2.5** Implement per-run folders under `runs/`.
+* [x] **P2.6** Implement stage transition events and current-run tracking in `STATUS.json`.
+* [x] **P2.7** Implement `job run <jobId>` using fake runners only.
+* [x] **P2.8** Add integration tests for happy-path lifecycle and invalid transition rejection.
 
 ### Notes
 
@@ -790,11 +790,83 @@ Files: tests/Ringmaster.Core.Tests/JobSnapshotRebuilderTests.cs; tests/Ringmaste
 Follow-ups: Add fake-runner lifecycle integration tests in Phase 2.
 ```
 
+```text
+2026-03-15 17:06 UTC
+Packet: P2.1
+Summary: Added the explicit Ringmaster lifecycle map, including the repair loop, blocked and failed exits, and stage-role descriptors for every executable state.
+Tests: dotnet build Ringmaster.sln; dotnet test Ringmaster.sln
+Files: src/Ringmaster.Core/Jobs/RingmasterStateMachine.cs; src/Ringmaster.Core/Jobs/JobContracts.cs; tests/Ringmaster.Core.Tests/RingmasterStateMachineTests.cs
+Follow-ups: Keep future lifecycle additions centralized in the state machine so the reducer and engine never drift.
+```
+
+```text
+2026-03-15 17:06 UTC
+Packet: P2.2
+Summary: Implemented IStateMachine transition validation and added unit coverage for allowed transitions, rejected jumps, executable stage descriptors, and automatic terminal states.
+Tests: dotnet test Ringmaster.sln
+Files: src/Ringmaster.Core/Jobs/RingmasterStateMachine.cs; src/Ringmaster.Core/Jobs/JobContracts.cs; tests/Ringmaster.Core.Tests/RingmasterStateMachineTests.cs
+Follow-ups: Route all future lifecycle mutations through IStateMachine instead of hand-written state checks.
+```
+
+```text
+2026-03-15 17:06 UTC
+Packet: P2.3
+Summary: Added the local JobEngine to drive one queued job through state transitions, invoke stage runners, persist run metadata, and reject invalid lifecycle outcomes before they hit the snapshot.
+Tests: dotnet build Ringmaster.sln; dotnet test Ringmaster.sln
+Files: src/Ringmaster.Core/Jobs/JobEngine.cs; src/Ringmaster.Core/Jobs/JobContracts.cs; tests/Ringmaster.IntegrationTests/JobEngineIntegrationTests.cs
+Follow-ups: Phase 3 can swap real git-backed preparation and verification under the same engine contract.
+```
+
+```text
+2026-03-15 17:06 UTC
+Packet: P2.4
+Summary: Registered deterministic fake runners for planner, implementer, verifier, repair, and reviewer stages so the local vertical slice exercises the same interfaces that later real integrations will use.
+Tests: dotnet test Ringmaster.sln
+Files: src/Ringmaster.App/Program.cs; src/Ringmaster.Infrastructure/Fakes/FakeStageRunner.cs; tests/Ringmaster.IntegrationTests/Testing/ScriptedStageRunner.cs
+Follow-ups: Preserve fake-runner parity as Git, Codex, and reviewer integrations replace individual stages.
+```
+
+```text
+2026-03-15 17:06 UTC
+Packet: P2.5
+Summary: Persisted per-run folders under runs/, wrote run.json for each stage execution, and normalized numbered run IDs so retries and later repair loops remain durable and inspectable.
+Tests: dotnet test Ringmaster.sln
+Files: src/Ringmaster.Infrastructure/Persistence/LocalFilesystemJobRepository.cs; src/Ringmaster.Core/Jobs/JobEngine.cs; tests/Ringmaster.IntegrationTests/JobEngineIntegrationTests.cs
+Follow-ups: Future phases can attach prompts, command logs, and structured artifacts to the existing per-run directories.
+```
+
+```text
+2026-03-15 17:06 UTC
+Packet: P2.6
+Summary: Added stage transition and run events, snapshot reducer support for current-run tracking, attempt counters, blocker clearing, and idle execution after completion, failure, or block.
+Tests: dotnet test Ringmaster.sln
+Files: src/Ringmaster.Core/Jobs/JobEventRecord.cs; src/Ringmaster.Core/Jobs/JobSnapshotRebuilder.cs; tests/Ringmaster.Core.Tests/JobSnapshotRebuilderTests.cs
+Follow-ups: Extend the reducer with heartbeat, verifier, and PR events as later phases add those transitions.
+```
+
+```text
+2026-03-15 17:06 UTC
+Packet: P2.7
+Summary: Implemented job run <jobId> on the CLI using fake runners only, and verified the built binary can create, execute, and reload a local job through READY_FOR_PR.
+Tests: dotnet test Ringmaster.sln; /home/thesamecat/dev/csharp/ringmaster/src/Ringmaster.App/bin/Debug/net10.0/ringmaster job create --title "Add retry handling" --description "Implement bounded retries." --json; /home/thesamecat/dev/csharp/ringmaster/src/Ringmaster.App/bin/Debug/net10.0/ringmaster job run job-20260315-468e1d7a9 --json; /home/thesamecat/dev/csharp/ringmaster/src/Ringmaster.App/bin/Debug/net10.0/ringmaster status --job-id job-20260315-468e1d7a9 --json
+Files: src/Ringmaster.App/CommandLine/RingmasterCli.cs; src/Ringmaster.App/Program.cs; tests/Ringmaster.IntegrationTests/RingmasterCliCommandTests.cs
+Follow-ups: Phase 3 can keep the CLI surface stable while replacing fake preparation and verification with real process-backed execution.
+```
+
+```text
+2026-03-15 17:06 UTC
+Packet: P2.8
+Summary: Added automated coverage for the happy path, blocked path, CLI execution path, and invalid transition rejection so Phase 2 exits on executable proof instead of manual inspection.
+Tests: dotnet test Ringmaster.sln
+Files: tests/Ringmaster.IntegrationTests/JobEngineIntegrationTests.cs; tests/Ringmaster.IntegrationTests/RingmasterCliCommandTests.cs; tests/Ringmaster.Core.Tests/RingmasterStateMachineTests.cs
+Follow-ups: Carry the same proof discipline into temp-repo git and verifier integration in Phase 3.
+```
+
 ---
 
 ## Immediate next step
 
-Start **Phase 2, Packet P2.1** and lock down the explicit state machine and transition rules over the persisted job model.
+Start **Phase 3, Packet P3.1** and add the generic external process runner with structured execution results, streaming log capture, and timeout handling for future git and verifier stages.
 
 [1]: https://developers.openai.com/codex/cli/?utm_source=chatgpt.com "Codex CLI"
 [2]: https://developers.openai.com/codex/learn/best-practices/?utm_source=chatgpt.com "Best practices"

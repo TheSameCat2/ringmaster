@@ -54,4 +54,85 @@ public sealed record class JobEventRecord
             NextEligibleAtUtc = status.NextEligibleAtUtc,
         };
     }
+
+    public static JobEventRecord CreateStateChanged(string jobId, JobState from, JobState to, DateTimeOffset timestampUtc)
+    {
+        return new JobEventRecord
+        {
+            Sequence = 0,
+            TimestampUtc = timestampUtc,
+            Type = JobEventType.StateChanged,
+            JobId = jobId,
+            From = from,
+            To = to,
+            ResumeState = to,
+            UpdatedAtUtc = timestampUtc,
+            NextEligibleAtUtc = timestampUtc,
+        };
+    }
+
+    public static JobEventRecord CreateRunStarted(JobRunRecord run)
+    {
+        return new JobEventRecord
+        {
+            Sequence = 0,
+            TimestampUtc = run.StartedAtUtc,
+            Type = JobEventType.RunStarted,
+            JobId = run.JobId,
+            RunId = run.RunId,
+            Stage = run.Stage,
+            Role = run.Role,
+            Attempt = run.Attempt,
+            StartedAtUtc = run.StartedAtUtc,
+            HeartbeatAtUtc = run.StartedAtUtc,
+            UpdatedAtUtc = run.StartedAtUtc,
+        };
+    }
+
+    public static JobEventRecord CreateRunCompleted(JobRunRecord run)
+    {
+        DateTimeOffset completedAt = run.CompletedAtUtc ?? run.StartedAtUtc;
+        return new JobEventRecord
+        {
+            Sequence = 0,
+            TimestampUtc = completedAt,
+            Type = JobEventType.RunCompleted,
+            JobId = run.JobId,
+            RunId = run.RunId,
+            Stage = run.Stage,
+            Role = run.Role,
+            ExitCode = run.ExitCode,
+            UpdatedAtUtc = completedAt,
+        };
+    }
+
+    public static JobEventRecord CreateBlocked(string jobId, BlockerInfo blocker, DateTimeOffset timestampUtc)
+    {
+        return new JobEventRecord
+        {
+            Sequence = 0,
+            TimestampUtc = timestampUtc,
+            Type = JobEventType.JobBlocked,
+            JobId = jobId,
+            Blocker = blocker,
+            ResumeState = blocker.ResumeState,
+            UpdatedAtUtc = timestampUtc,
+            NextEligibleAtUtc = timestampUtc,
+        };
+    }
+
+    public static JobEventRecord CreateFailed(string jobId, FailureCategory failureCategory, string summary, DateTimeOffset timestampUtc)
+    {
+        return new JobEventRecord
+        {
+            Sequence = 0,
+            TimestampUtc = timestampUtc,
+            Type = JobEventType.JobFailed,
+            JobId = jobId,
+            FailureCategory = failureCategory,
+            Summary = summary,
+            Signature = $"fake:{failureCategory}",
+            UpdatedAtUtc = timestampUtc,
+        };
+    }
 }

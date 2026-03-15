@@ -61,6 +61,7 @@ public sealed class JobSnapshotRebuilder
         {
             State = jobEvent.To ?? snapshot.State,
             ResumeState = jobEvent.ResumeState ?? jobEvent.To ?? snapshot.ResumeState,
+            Blocker = null,
             NextEligibleAtUtc = jobEvent.NextEligibleAtUtc ?? jobEvent.TimestampUtc,
             UpdatedAtUtc = jobEvent.UpdatedAtUtc ?? jobEvent.TimestampUtc,
         };
@@ -69,6 +70,20 @@ public sealed class JobSnapshotRebuilder
     private static JobStatusSnapshot ApplyRunStarted(JobStatusSnapshot? current, JobEventRecord jobEvent)
     {
         JobStatusSnapshot snapshot = current ?? throw new InvalidOperationException("RunStarted cannot be applied before JobCreated.");
+        JobAttemptCounters attempts = snapshot.Attempts;
+
+        if (jobEvent.Stage is not null)
+        {
+            attempts = jobEvent.Stage.Value switch
+            {
+                JobStage.PREPARING => attempts with { Preparing = jobEvent.Attempt ?? attempts.Preparing },
+                JobStage.IMPLEMENTING => attempts with { Implementing = jobEvent.Attempt ?? attempts.Implementing },
+                JobStage.VERIFYING => attempts with { Verifying = jobEvent.Attempt ?? attempts.Verifying },
+                JobStage.REPAIRING => attempts with { Repairing = jobEvent.Attempt ?? attempts.Repairing },
+                JobStage.REVIEWING => attempts with { Reviewing = jobEvent.Attempt ?? attempts.Reviewing },
+                _ => attempts,
+            };
+        }
 
         return snapshot with
         {
@@ -84,6 +99,7 @@ public sealed class JobSnapshotRebuilder
                 ProcessId = jobEvent.ProcessId,
                 SessionId = jobEvent.SessionId,
             },
+            Attempts = attempts,
             UpdatedAtUtc = jobEvent.UpdatedAtUtc ?? jobEvent.TimestampUtc,
         };
     }
@@ -125,6 +141,7 @@ public sealed class JobSnapshotRebuilder
             State = JobState.BLOCKED,
             ResumeState = blocker.ResumeState,
             Blocker = blocker,
+            Execution = JobExecutionSnapshot.Idle(),
             UpdatedAtUtc = jobEvent.UpdatedAtUtc ?? jobEvent.TimestampUtc,
             NextEligibleAtUtc = jobEvent.NextEligibleAtUtc ?? jobEvent.TimestampUtc,
         };
@@ -153,6 +170,7 @@ public sealed class JobSnapshotRebuilder
         {
             State = JobState.FAILED,
             LastFailure = failure ?? snapshot.LastFailure,
+            Execution = JobExecutionSnapshot.Idle(),
             UpdatedAtUtc = jobEvent.UpdatedAtUtc ?? jobEvent.TimestampUtc,
             NextEligibleAtUtc = jobEvent.NextEligibleAtUtc ?? snapshot.NextEligibleAtUtc,
         };

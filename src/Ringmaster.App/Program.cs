@@ -1,9 +1,9 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Ringmaster.Abstractions.Jobs;
 using Ringmaster.App;
 using Ringmaster.App.CommandLine;
 using Ringmaster.Core.Jobs;
+using Ringmaster.Infrastructure.Fakes;
 using Ringmaster.Infrastructure.Persistence;
 using Spectre.Console;
 
@@ -28,6 +28,13 @@ builder.Services.AddSingleton<IJobRepository>(serviceProvider =>
         serviceProvider.GetRequiredService<JobEventLogStore>(),
         serviceProvider.GetRequiredService<JobSnapshotRebuilder>());
 });
+builder.Services.AddSingleton<IStateMachine, RingmasterStateMachine>();
+builder.Services.AddSingleton<IStageRunner>(_ => new FakeStageRunner(JobStage.PREPARING, StageRole.Planner, JobState.IMPLEMENTING, "Planner completed."));
+builder.Services.AddSingleton<IStageRunner>(_ => new FakeStageRunner(JobStage.IMPLEMENTING, StageRole.Implementer, JobState.VERIFYING, "Implementer completed."));
+builder.Services.AddSingleton<IStageRunner>(_ => new FakeStageRunner(JobStage.VERIFYING, StageRole.SystemVerifier, JobState.REVIEWING, "Verifier completed."));
+builder.Services.AddSingleton<IStageRunner>(_ => new FakeStageRunner(JobStage.REPAIRING, StageRole.Implementer, JobState.VERIFYING, "Repair completed."));
+builder.Services.AddSingleton<IStageRunner>(_ => new FakeStageRunner(JobStage.REVIEWING, StageRole.Reviewer, JobState.READY_FOR_PR, "Reviewer approved."));
+builder.Services.AddSingleton<JobEngine>();
 builder.Services.AddSingleton<RingmasterCli>();
 
 using IHost host = builder.Build();

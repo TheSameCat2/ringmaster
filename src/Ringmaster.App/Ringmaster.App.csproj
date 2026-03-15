@@ -12,7 +12,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Ringmaster.Abstractions\Ringmaster.Abstractions.csproj" />
     <ProjectReference Include="..\Ringmaster.Codex\Ringmaster.Codex.csproj" />
     <ProjectReference Include="..\Ringmaster.Core\Ringmaster.Core.csproj" />
     <ProjectReference Include="..\Ringmaster.Git\Ringmaster.Git.csproj" />

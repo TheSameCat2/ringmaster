@@ -1,5 +1,4 @@
 using System.CommandLine;
-using Ringmaster.Abstractions.Jobs;
 using Ringmaster.Core.Jobs;
 using Ringmaster.Core.Serialization;
 using Spectre.Console;
@@ -9,6 +8,7 @@ namespace Ringmaster.App.CommandLine;
 public sealed class RingmasterCli(
     IAnsiConsole console,
     IJobRepository jobRepository,
+    JobEngine jobEngine,
     RingmasterApplicationContext applicationContext)
 {
     public RootCommand CreateRootCommand()
@@ -39,7 +39,7 @@ public sealed class RingmasterCli(
         Command command = new("job", "Create, inspect, and run individual jobs.");
         command.Subcommands.Add(CreateJobCreateCommand());
         command.Subcommands.Add(CreateJobShowCommand());
-        command.Subcommands.Add(CreatePlaceholderCommand("run", "Run one job synchronously."));
+        command.Subcommands.Add(CreateJobRunCommand());
         command.Subcommands.Add(CreatePlaceholderCommand("resume", "Resume a blocked or interrupted job."));
         command.Subcommands.Add(CreatePlaceholderCommand("unblock", "Store human input and resume a blocked job."));
         command.Subcommands.Add(CreatePlaceholderCommand("cancel", "Cancel a queued or blocked job."));
@@ -200,6 +200,43 @@ public sealed class RingmasterCli(
             console.WriteLine();
             console.MarkupLine(storedJob.Definition.Description);
             return 0;
+        });
+
+        return command;
+    }
+
+    private Command CreateJobRunCommand()
+    {
+        Command command = new("run", "Run one job synchronously.");
+        Argument<string> jobIdArgument = new("job-id") { Description = "Job identifier." };
+        Option<bool> jsonOption = new("--json") { Description = "Emit JSON output." };
+
+        command.Arguments.Add(jobIdArgument);
+        command.Options.Add(jsonOption);
+
+        command.SetAction(async (parseResult, cancellationToken) =>
+        {
+            string jobId = parseResult.GetValue(jobIdArgument)
+                ?? throw new InvalidOperationException("The required job identifier was not provided.");
+
+            try
+            {
+                JobStatusSnapshot status = await jobEngine.RunAsync(jobId, cancellationToken);
+
+                if (parseResult.GetValue(jsonOption))
+                {
+                    WriteJson(status);
+                    return 0;
+                }
+
+                console.MarkupLine($"[green]Job finished in state[/] [blue]{status.State}[/]");
+                return 0;
+            }
+            catch (InvalidOperationException exception)
+            {
+                console.MarkupLine($"[red]{Markup.Escape(exception.Message)}[/]");
+                return 1;
+            }
         });
 
         return command;

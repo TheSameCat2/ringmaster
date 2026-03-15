@@ -1,4 +1,3 @@
-using Ringmaster.Abstractions.Jobs;
 using Ringmaster.Core;
 using Ringmaster.Core.Jobs;
 using Ringmaster.Core.Serialization;
@@ -145,6 +144,49 @@ public sealed class LocalFilesystemJobRepository(
         return rebuilt;
     }
 
+    public async Task<JobStatusSnapshot> AppendEventAsync(string jobId, JobEventRecord jobEvent, CancellationToken cancellationToken)
+    {
+        IReadOnlyList<JobEventRecord> existingEvents = await jobEventLogStore.ReadAllAsync(RingmasterPaths.EventLogPath(_repositoryRoot, jobId), cancellationToken);
+        long nextSequence = existingEvents.Count == 0 ? 1 : existingEvents.Max(existingEvent => existingEvent.Sequence) + 1;
+        JobEventRecord normalized = jobEvent with { Sequence = nextSequence };
+
+        await jobEventLogStore.AppendAsync(RingmasterPaths.EventLogPath(_repositoryRoot, jobId), normalized, cancellationToken);
+
+        List<JobEventRecord> rebuiltEvents = existingEvents.ToList();
+        rebuiltEvents.Add(normalized);
+
+        JobStatusSnapshot rebuilt = snapshotRebuilder.Rebuild(rebuiltEvents);
+        await atomicFileWriter.WriteJsonAsync(RingmasterPaths.StatusPath(_repositoryRoot, jobId), rebuilt, cancellationToken);
+        return rebuilt;
+    }
+
+    public Task<int> GetNextRunNumberAsync(string jobId, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        string runsRoot = Path.Combine(RingmasterPaths.JobRoot(_repositoryRoot, jobId), "runs");
+        if (!Directory.Exists(runsRoot))
+        {
+            return Task.FromResult(1);
+        }
+
+        int nextRunNumber = Directory.EnumerateDirectories(runsRoot)
+            .Select(Path.GetFileName)
+            .Where(name => !string.IsNullOrWhiteSpace(name) && name!.Length >= 4)
+            .Select(name => int.TryParse(name![..4], out int value) ? value : 0)
+            .DefaultIfEmpty(0)
+            .Max() + 1;
+
+        return Task.FromResult(nextRunNumber);
+    }
+
+    public async Task SaveRunAsync(string jobId, JobRunRecord run, CancellationToken cancellationToken)
+    {
+        string runDirectory = RingmasterPaths.RunDirectoryPath(_repositoryRoot, jobId, run.RunId);
+        Directory.CreateDirectory(runDirectory);
+        await atomicFileWriter.WriteJsonAsync(RingmasterPaths.RunRecordPath(_repositoryRoot, jobId, run.RunId), run, cancellationToken);
+    }
+
     private async Task<JobStatusSnapshot> LoadStatusAsync(string jobId, CancellationToken cancellationToken)
     {
         string statusPath = RingmasterPaths.StatusPath(_repositoryRoot, jobId);
@@ -210,4 +252,6 @@ internal static class RingmasterPaths
     public static string ReviewPath(string repositoryRoot, string jobId) => Path.Combine(JobRoot(repositoryRoot, jobId), "REVIEW.md");
     public static string PullRequestPath(string repositoryRoot, string jobId) => Path.Combine(JobRoot(repositoryRoot, jobId), "PR.md");
     public static string EventLogPath(string repositoryRoot, string jobId) => Path.Combine(JobRoot(repositoryRoot, jobId), "events", "events.jsonl");
+    public static string RunDirectoryPath(string repositoryRoot, string jobId, string runId) => Path.Combine(JobRoot(repositoryRoot, jobId), "runs", runId);
+    public static string RunRecordPath(string repositoryRoot, string jobId, string runId) => Path.Combine(RunDirectoryPath(repositoryRoot, jobId, runId), "run.json");
 }

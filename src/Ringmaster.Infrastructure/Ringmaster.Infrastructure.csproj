@@ -1,7 +1,6 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
-    <ProjectReference Include="..\Ringmaster.Abstractions\Ringmaster.Abstractions.csproj" />
     <ProjectReference Include="..\Ringmaster.Core\Ringmaster.Core.csproj" />
   </ItemGroup>
 
