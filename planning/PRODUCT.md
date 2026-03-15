@@ -1,4 +1,4 @@
-# C# Git-Worktree Codex Orchestrator Design
+# C# Git-Worktree Codex Ringmaster Design
 
 The right mental model is not “a smart chat that happens to edit code.” It is **a durable workflow engine that uses Codex as a replaceable stage worker**. The orchestrator owns truth, retries, verification, Git side effects, and notifications. Agents read state from disk, edit code, and return structured outputs. If you keep that boundary hard, session crashes and multi-hour jobs stop being scary.
 
@@ -56,7 +56,7 @@ Use System.CommandLine for command parsing and Spectre.Console only for renderin
 └───────────────┬──────────────────────────────────────────┘
                 │
 ┌───────────────▼──────────────────────────────────────────┐
-│ Orchestrator Host                                        │
+│ Ringmaster Host                                          │
 │  - dependency injection                                  │
 │  - config                                                │
 │  - logging                                               │
@@ -116,17 +116,17 @@ I would split the code into these assemblies:
 
 ```text
 src/
-  Orchestrator.App              // composition root, System.CommandLine
-  Orchestrator.Core             // state machine, policies, domain types
-  Orchestrator.Abstractions     // service interfaces
-  Orchestrator.Infrastructure   // filesystem, locks, process runner, serialization
-  Orchestrator.Git              // git CLI adapter
-  Orchestrator.Codex            // codex exec/resume adapter
-  Orchestrator.GitHub           // gh-based PR provider
+  Ringmaster.App              // composition root, System.CommandLine
+  Ringmaster.Core             // state machine, policies, domain types
+  Ringmaster.Abstractions     // service interfaces
+  Ringmaster.Infrastructure   // filesystem, locks, process runner, serialization
+  Ringmaster.Git              // git CLI adapter
+  Ringmaster.Codex            // codex exec/resume adapter
+  Ringmaster.GitHub           // gh-based PR provider
 tests/
-  Orchestrator.Core.Tests
-  Orchestrator.IntegrationTests
-  Orchestrator.FaultInjectionTests
+  Ringmaster.Core.Tests
+  Ringmaster.IntegrationTests
+  Ringmaster.FaultInjectionTests
 ```
 
 ## 1.5 Core interfaces
@@ -160,8 +160,8 @@ I recommend this:
 
 ```text
 <repo>/
-  orchestrator.json                  // optional committed repo config
-  .orchestrator/                     // ignored runtime state
+  ringmaster.json                    // optional committed repo config
+  .ringmaster/                       // ignored runtime state
     jobs/
       job-20260315-7f3c9b2a/
         JOB.json                     // canonical task definition (machine-owned)
@@ -206,7 +206,7 @@ I recommend this:
 And put actual linked Git worktrees **outside** the main repo working tree, for example:
 
 ```text
-<repo-parent>/.orchestrator-worktrees/<repo-name>/job-20260315-7f3c9b2a/
+<repo-parent>/.ringmaster-worktrees/<repo-name>/job-20260315-7f3c9b2a/
 ```
 
 That avoids nested-checkout weirdness in IDEs, file watchers, recursive globs, and search tools.
@@ -321,7 +321,7 @@ A production tool should not force humans to read raw JSON, and it should not fo
     "repoRoot": "/src/payments",
     "baseBranch": "main",
     "baseCommit": "a18f7c8d1d8c4d9e5b7ac2",
-    "jobBranch": "orchestrator/j-7f3c9b2a-webhook-retry",
+    "jobBranch": "ringmaster/j-7f3c9b2a-webhook-retry",
     "worktreePath": "/worktrees/payments/j-7f3c9b2a",
     "headCommit": "5c99e1244b9a70f819a6b1",
     "hasUncommittedChanges": true,
@@ -373,7 +373,7 @@ A production tool should not force humans to read raw JSON, and it should not fo
     "--cd",
     "/worktrees/payments/j-7f3c9b2a",
     "--add-dir",
-    "/src/payments/.orchestrator/jobs/job-20260315-7f3c9b2a",
+    "/src/payments/.ringmaster/jobs/job-20260315-7f3c9b2a",
     "--sandbox",
     "workspace-write",
     "--ask-for-approval",
@@ -1038,13 +1038,13 @@ Git worktrees are the right primitive here. Git documents them as linked working
 
 * One job → one branch
 * One job → one linked worktree
-* Branch name format: `orchestrator/j-<shortId>-<slug>`
+* Branch name format: `ringmaster/j-<shortId>-<slug>`
 * Worktree path format: short and deterministic
 
 Example:
 
 ```text
-branch: orchestrator/j-7f3c9b2a-webhook-retry
+branch: ringmaster/j-7f3c9b2a-webhook-retry
 worktree: /worktrees/payments/j-7f3c9b2a
 ```
 
@@ -1062,8 +1062,8 @@ During `PREPARING`:
 Use a command equivalent to:
 
 ```bash
-git worktree add --lock --reason "orchestrator job job-20260315-7f3c9b2a" \
-  -b orchestrator/j-7f3c9b2a-webhook-retry \
+git worktree add --lock --reason "ringmaster job job-20260315-7f3c9b2a" \
+  -b ringmaster/j-7f3c9b2a-webhook-retry \
   /worktrees/payments/j-7f3c9b2a \
   origin/main
 ```
@@ -1122,13 +1122,13 @@ The orchestrator owns commits.
 Recommended policy:
 
 * allow agents to modify the worktree
-* after verification passes for a meaningful checkpoint, orchestrator creates a commit
+* after verification passes for a meaningful checkpoint, Ringmaster creates a commit
 * commit message format is deterministic
 
 Example:
 
 ```text
-orchestrator(job-20260315-7f3c9b2a): implement retry handling
+ringmaster(job-20260315-7f3c9b2a): implement retry handling
 ```
 
 This gives you:
@@ -1143,7 +1143,7 @@ I would not auto-squash by default. Let the PR be squashed on merge if the team 
 
 Verification commands must come from repo configuration, not agent invention.
 
-Put them in `orchestrator.json`, for example:
+Put them in `ringmaster.json`, for example:
 
 ```json
 {
@@ -1218,40 +1218,40 @@ The CLI should support both **operator mode** and **worker mode**.
 ## 7.1 Top-level commands
 
 ```text
-orchestrator init
-orchestrator doctor
+ringmaster init
+ringmaster doctor
 
-orchestrator job create
-orchestrator job show
-orchestrator job run
-orchestrator job resume
-orchestrator job unblock
-orchestrator job cancel
+ringmaster job create
+ringmaster job show
+ringmaster job run
+ringmaster job resume
+ringmaster job unblock
+ringmaster job cancel
 
-orchestrator queue run
-orchestrator queue once
+ringmaster queue run
+ringmaster queue once
 
-orchestrator status
-orchestrator logs
+ringmaster status
+ringmaster logs
 
-orchestrator pr open
-orchestrator worktree open
-orchestrator cleanup
+ringmaster pr open
+ringmaster worktree open
+ringmaster cleanup
 ```
 
 ## 7.2 Command behaviors
 
-### `orchestrator init`
+### `ringmaster init`
 
 Creates local runtime layout and optional repo config scaffold.
 
 Example:
 
 ```bash
-orchestrator init --base-branch main --pr-provider github
+ringmaster init --base-branch main --pr-provider github
 ```
 
-### `orchestrator doctor`
+### `ringmaster doctor`
 
 Checks:
 
@@ -1262,25 +1262,25 @@ Checks:
 * worktree root writable
 * runtime folders writable
 
-### `orchestrator job create`
+### `ringmaster job create`
 
 Creates a durable queued job.
 
 Example:
 
 ```bash
-orchestrator job create \
+ringmaster job create \
   --title "Add retry handling to payment webhook consumer" \
   --task-file task.md \
   --verify-profile default \
   --priority 50
 ```
 
-### `orchestrator job run <jobId>`
+### `ringmaster job run <jobId>`
 
 Runs one job synchronously in the foreground until terminal state or block.
 
-### `orchestrator job resume <jobId>`
+### `ringmaster job resume <jobId>`
 
 Resumes from current state:
 
@@ -1288,32 +1288,32 @@ Resumes from current state:
 * abandoned active-stage job after crash
 * ready-for-pr job for PR opening
 
-### `orchestrator job unblock <jobId>`
+### `ringmaster job unblock <jobId>`
 
 Stores a human answer and restarts from `resumeState`.
 
 Example:
 
 ```bash
-orchestrator job unblock job-20260315-7f3c9b2a \
+ringmaster job unblock job-20260315-7f3c9b2a \
   --message "Use in-memory retry only; no durable scheduler needed."
 ```
 
-### `orchestrator queue run`
+### `ringmaster queue run`
 
 Starts the long-running worker loop.
 
 Example:
 
 ```bash
-orchestrator queue run --max-parallel 3 --watch
+ringmaster queue run --max-parallel 3 --watch
 ```
 
-### `orchestrator queue once`
+### `ringmaster queue once`
 
 Runs a single scheduling pass. Useful in cron/CI.
 
-### `orchestrator status`
+### `ringmaster status`
 
 Shows one job or all jobs.
 Support:
@@ -1322,26 +1322,26 @@ Support:
 * `--json`
 * `--watch`
 
-### `orchestrator logs`
+### `ringmaster logs`
 
 Opens or tails logs.
 
 Examples:
 
 ```bash
-orchestrator logs job-20260315-7f3c9b2a --run 0004-verifying-system
-orchestrator logs job-20260315-7f3c9b2a --follow
+ringmaster logs job-20260315-7f3c9b2a --run 0004-verifying-system
+ringmaster logs job-20260315-7f3c9b2a --follow
 ```
 
-### `orchestrator pr open <jobId>`
+### `ringmaster pr open <jobId>`
 
 Opens the PR for a `READY_FOR_PR` job if auto-open was disabled.
 
-### `orchestrator worktree open <jobId>`
+### `ringmaster worktree open <jobId>`
 
 Prints or opens the worktree path for manual inspection.
 
-### `orchestrator cleanup`
+### `ringmaster cleanup`
 
 Prunes expired job worktrees and old artifacts.
 
@@ -1547,7 +1547,7 @@ But keep the filesystem logs authoritative in v1.
 
 ## 10. MVP Implementation Plan
 
-## Phase 1 — Minimal orchestrator
+## Phase 1 — Minimal Ringmaster
 
 Goal: one production-credible job runner with durable disk state.
 
@@ -1699,7 +1699,7 @@ Add:
 * explicit prompt rules
 * forbidden path policy
 * deterministic post-run checks
-* orchestrator-owned commit/PR steps only
+* Ringmaster-owned commit/PR steps only
 * classify violations as protocol failure
 
 ## 11.9 Large repositories and slow Windows paths

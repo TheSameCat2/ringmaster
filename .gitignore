@@ -18,5 +18,5 @@ Thumbs.db
 artifacts/
 *.nupkg
 
-## Orchestrator runtime state
-.orchestrator/
+## Ringmaster runtime state
+.ringmaster/

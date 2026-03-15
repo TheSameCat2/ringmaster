@@ -48,17 +48,17 @@ The repository should reach this shape early:
   .editorconfig
   .gitattributes
   src/
-    Orchestrator.App/
-    Orchestrator.Core/
-    Orchestrator.Abstractions/
-    Orchestrator.Infrastructure/
-    Orchestrator.Git/
-    Orchestrator.Codex/
-    Orchestrator.GitHub/
+    Ringmaster.App/
+    Ringmaster.Core/
+    Ringmaster.Abstractions/
+    Ringmaster.Infrastructure/
+    Ringmaster.Git/
+    Ringmaster.Codex/
+    Ringmaster.GitHub/
   tests/
-    Orchestrator.Core.Tests/
-    Orchestrator.IntegrationTests/
-    Orchestrator.FaultInjectionTests/
+    Ringmaster.Core.Tests/
+    Ringmaster.IntegrationTests/
+    Ringmaster.FaultInjectionTests/
   scripts/
     dev/
       bootstrap-arch.sh
@@ -139,7 +139,7 @@ Create a clean repository skeleton that Codex can work in safely and repeatedly.
 * [ ] **P0.5** Add `.codex/config.toml` with minimal project defaults.
 * [ ] **P0.6** Add `scripts/dev/bootstrap-arch.sh`, `scripts/dev/smoke.sh`, and `scripts/dev/run-phase.sh` for local convenience only.
 * [ ] **P0.7** Add placeholder test projects and verify solution build/test.
-* [ ] **P0.8** Add a minimal `orchestrator --help` command shell.
+* [ ] **P0.8** Add a minimal `ringmaster --help` command shell.
 
 ### Notes
 
@@ -151,7 +151,7 @@ The repo-local Codex setup should be intentionally small. Codex docs support pro
 
 * `dotnet build` passes.
 * `dotnet test` passes.
-* `orchestrator --help` works.
+* `ringmaster --help` works.
 * Root `AGENTS.md` exists.
 * Repo-local `.codex/config.toml` exists.
 * A Codex session can start at repo root and identify the two planning docs.
@@ -597,10 +597,19 @@ Follow-ups:
 ```text
 2026-03-15 16:27 UTC
 Packet: P0.1
-Summary: Initialized the repository, added a baseline .gitignore, created Orchestrator.sln, and scaffolded the initial src/ project layout for App, Core, Abstractions, Infrastructure, Git, Codex, and GitHub.
-Tests: dotnet build Orchestrator.sln
-Files: .gitignore; Orchestrator.sln; src/Orchestrator.App/; src/Orchestrator.Core/; src/Orchestrator.Abstractions/; src/Orchestrator.Infrastructure/; src/Orchestrator.Git/; src/Orchestrator.Codex/; src/Orchestrator.GitHub/
+Summary: Initialized the repository, added a baseline .gitignore, created Ringmaster.sln, and scaffolded the initial src/ project layout for App, Core, Abstractions, Infrastructure, Git, Codex, and GitHub.
+Tests: dotnet build Ringmaster.sln
+Files: .gitignore; Ringmaster.sln; src/Ringmaster.App/; src/Ringmaster.Core/; src/Ringmaster.Abstractions/; src/Ringmaster.Infrastructure/; src/Ringmaster.Git/; src/Ringmaster.Codex/; src/Ringmaster.GitHub/
 Follow-ups: Implement P0.2 next to add global SDK/build/editor settings before introducing project references or CLI behavior.
+```
+
+```text
+2026-03-15 16:33 UTC
+Packet: P0.1
+Summary: Renamed the product scaffold from Orchestrator to Ringmaster and updated the planning docs so future phases use Ringmaster for concrete project, CLI, config, runtime-path, branch, and commit examples.
+Tests: dotnet build Ringmaster.sln
+Files: .gitignore; Ringmaster.sln; planning/PRODUCT.md; planning/IMPLEMENTATION.md; src/Ringmaster.App/; src/Ringmaster.Core/; src/Ringmaster.Abstractions/; src/Ringmaster.Infrastructure/; src/Ringmaster.Git/; src/Ringmaster.Codex/; src/Ringmaster.GitHub/
+Follow-ups: Continue with P0.2 using the Ringmaster naming baseline.
 ```
 
 ---
