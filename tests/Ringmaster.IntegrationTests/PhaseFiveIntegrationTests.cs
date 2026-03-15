@@ -556,22 +556,20 @@ public sealed class PhaseFiveIntegrationTests
                 """
                 @echo off
                 findstr /C:"BROKEN_COMPILE" src.txt >nul
-                if %errorlevel%==0 (
-                  echo src/Program.cs(12,5): error CS0103: The name 'missingSymbol' does not exist in the current context
-                  exit /b 1
-                )
+                if errorlevel 1 exit /b 0
+                echo src/Program.cs^(12,5^): error CS0103: The name 'missingSymbol' does not exist in the current context
+                exit /b 1
                 exit /b 0
                 """,
                 testsPath,
                 """
                 @echo off
                 findstr /C:"FAIL_TEST" tests.txt >nul
-                if %errorlevel%==0 (
-                  echo Failed Ringmaster.Tests.RetryTests.Should_retry_on_429 [1 ms]
-                  echo   Expected: 2
-                  echo   Actual:   1
-                  exit /b 1
-                )
+                if errorlevel 1 exit /b 0
+                echo Failed Ringmaster.Tests.RetryTests.Should_retry_on_429 [1 ms]
+                echo   Expected: 2
+                echo   Actual:   1
+                exit /b 1
                 exit /b 0
                 """);
         }
