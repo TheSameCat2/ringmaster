@@ -510,8 +510,8 @@ public sealed class PhaseFiveIntegrationTests
             TemporaryGitRepository.CreateDefaultRepoConfigJson(commands));
         await File.WriteAllTextAsync(Path.Combine(repositoryRoot.Path, "src.txt"), "INITIAL" + Environment.NewLine);
         await File.WriteAllTextAsync(Path.Combine(repositoryRoot.Path, "tests.txt"), "INITIAL" + Environment.NewLine);
-        await File.WriteAllTextAsync(compilePath, compileScript);
-        await File.WriteAllTextAsync(testsPath, testsScript);
+        await File.WriteAllTextAsync(compilePath, NormalizeWindowsScript(compileScript));
+        await File.WriteAllTextAsync(testsPath, NormalizeWindowsScript(testsScript));
 
         if (!OperatingSystem.IsWindows())
         {
@@ -659,5 +659,16 @@ public sealed class PhaseFiveIntegrationTests
             SessionId = sessionId,
             FinalOutputText = json,
         };
+    }
+
+    private static string NormalizeWindowsScript(string script)
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return script;
+        }
+
+        return script.Replace("\r\n", "\n", StringComparison.Ordinal)
+            .Replace("\n", "\r\n", StringComparison.Ordinal);
     }
 }

@@ -16,6 +16,9 @@ internal static class TestPathComparer
 
     public static bool ContainsPath(string text, string path)
     {
-        return Normalize(text).Contains(Normalize(path), StringComparison.Ordinal);
+        string normalizedText = Normalize(text)
+            .Replace("\r", string.Empty, StringComparison.Ordinal)
+            .Replace("\n", string.Empty, StringComparison.Ordinal);
+        return normalizedText.Contains(Normalize(path), StringComparison.Ordinal);
     }
 }
