@@ -503,19 +503,9 @@ The product document defines these commands and UX contracts, but the original i
 
 ---
 
-## Deferred until after v1
+## Post-v1 ideas
 
-Do not start these until the previous phases are complete.
-
-* Distributed scheduling across multiple machines
-* Database-backed job store
-* Web dashboard
-* Containerized verifier sandboxes
-* GitLab/Azure DevOps PR providers
-* Auto-rebase / auto-merge
-* Nested or hierarchical jobs
-* Sub-agent orchestration inside one job
-* Cloud execution backends
+Deferred follow-on ideas now live in [`IDEAS.md`](/home/thesamecat/dev/csharp/ringmaster/IDEAS.md).
 
 ---
 
