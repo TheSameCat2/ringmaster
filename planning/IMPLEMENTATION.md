@@ -1092,3 +1092,12 @@ All planned v1 implementation packets are complete. Pull from the deferred list 
 [6]: https://developers.openai.com/codex/cli/reference/?utm_source=chatgpt.com "Command line options"
 [7]: https://developers.openai.com/codex/noninteractive/?utm_source=chatgpt.com "Non-interactive mode"
 [8]: https://developers.openai.com/codex/guides/agents-md/?utm_source=chatgpt.com "Custom instructions with AGENTS.md"
+
+```text
+2026-03-15 21:32 UTC
+Packet: P10.1
+Summary: Hardened run-id handling for queue resume by rejecting unsafe persisted run IDs before abandoned-run reads/writes and by enforcing safe path-segment validation inside SaveRunAsync; added repository test coverage for traversal rejection.
+Tests: dotnet build Ringmaster.sln (fails: dotnet not installed in environment); dotnet test Ringmaster.sln (fails: dotnet not installed in environment); ./src/Ringmaster.App/bin/Debug/net10.0/ringmaster --help (fails: binary not present because dotnet build cannot run); bash -n scripts/dev/*.sh
+Files: src/Ringmaster.Core/Jobs/JobEngine.cs; src/Ringmaster.Infrastructure/Persistence/LocalFilesystemJobRepository.cs; tests/Ringmaster.IntegrationTests/LocalFilesystemJobRepositoryTests.cs
+Follow-ups: When dotnet is available, rerun full build/test/help smoke to confirm behavior end-to-end.
+```
