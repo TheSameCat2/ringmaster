@@ -21,6 +21,8 @@ public sealed class JobSnapshotRebuilder
             JobEventType.JobCreated => ApplyJobCreated(jobEvent),
             JobEventType.StateChanged => ApplyStateChanged(current, jobEvent),
             JobEventType.GitStateCaptured => ApplyGitStateCaptured(current, jobEvent),
+            JobEventType.FailureRecorded => ApplyFailureRecorded(current, jobEvent),
+            JobEventType.ReviewRecorded => ApplyReviewRecorded(current, jobEvent),
             JobEventType.RunStarted => ApplyRunStarted(current, jobEvent),
             JobEventType.RunHeartbeat => ApplyRunHeartbeat(current, jobEvent),
             JobEventType.RunCompleted => ApplyRunCompleted(current, jobEvent),
@@ -105,6 +107,32 @@ public sealed class JobSnapshotRebuilder
         };
     }
 
+    private static JobStatusSnapshot ApplyFailureRecorded(JobStatusSnapshot? current, JobEventRecord jobEvent)
+    {
+        JobStatusSnapshot snapshot = current ?? throw new InvalidOperationException("FailureRecorded cannot be applied before JobCreated.");
+
+        return snapshot with
+        {
+            LastFailure = BuildFailureSnapshot(snapshot.LastFailure, jobEvent),
+            UpdatedAtUtc = jobEvent.UpdatedAtUtc ?? jobEvent.TimestampUtc,
+        };
+    }
+
+    private static JobStatusSnapshot ApplyReviewRecorded(JobStatusSnapshot? current, JobEventRecord jobEvent)
+    {
+        JobStatusSnapshot snapshot = current ?? throw new InvalidOperationException("ReviewRecorded cannot be applied before JobCreated.");
+
+        return snapshot with
+        {
+            Review = new JobReviewSnapshot
+            {
+                Verdict = jobEvent.ReviewVerdict ?? ReviewVerdict.Pending,
+                Risk = jobEvent.ReviewRisk,
+            },
+            UpdatedAtUtc = jobEvent.UpdatedAtUtc ?? jobEvent.TimestampUtc,
+        };
+    }
+
     private static JobStatusSnapshot ApplyGitStateCaptured(JobStatusSnapshot? current, JobEventRecord jobEvent)
     {
         JobStatusSnapshot snapshot = current ?? throw new InvalidOperationException("GitStateCaptured cannot be applied before JobCreated.");
@@ -173,28 +201,34 @@ public sealed class JobSnapshotRebuilder
     {
         JobStatusSnapshot snapshot = current ?? throw new InvalidOperationException("JobFailed cannot be applied before JobCreated.");
 
-        JobFailureSnapshot? failure = null;
-
-        if (jobEvent.FailureCategory is not null && jobEvent.Signature is not null && jobEvent.Summary is not null)
-        {
-            failure = new JobFailureSnapshot
-            {
-                Category = jobEvent.FailureCategory.Value,
-                Signature = jobEvent.Signature,
-                Summary = jobEvent.Summary,
-                FirstSeenAtUtc = jobEvent.TimestampUtc,
-                LastSeenAtUtc = jobEvent.TimestampUtc,
-                RepetitionCount = 1,
-            };
-        }
-
         return snapshot with
         {
             State = JobState.FAILED,
-            LastFailure = failure ?? snapshot.LastFailure,
+            LastFailure = BuildFailureSnapshot(snapshot.LastFailure, jobEvent) ?? snapshot.LastFailure,
             Execution = JobExecutionSnapshot.Idle(),
             UpdatedAtUtc = jobEvent.UpdatedAtUtc ?? jobEvent.TimestampUtc,
             NextEligibleAtUtc = jobEvent.NextEligibleAtUtc ?? snapshot.NextEligibleAtUtc,
+        };
+    }
+
+    private static JobFailureSnapshot? BuildFailureSnapshot(JobFailureSnapshot? previous, JobEventRecord jobEvent)
+    {
+        if (jobEvent.FailureCategory is null || jobEvent.Signature is null || jobEvent.Summary is null)
+        {
+            return null;
+        }
+
+        bool repeated = previous is not null
+            && string.Equals(previous.Signature, jobEvent.Signature, StringComparison.Ordinal);
+
+        return new JobFailureSnapshot
+        {
+            Category = jobEvent.FailureCategory.Value,
+            Signature = jobEvent.Signature,
+            Summary = jobEvent.Summary,
+            FirstSeenAtUtc = repeated ? previous!.FirstSeenAtUtc : jobEvent.TimestampUtc,
+            LastSeenAtUtc = jobEvent.TimestampUtc,
+            RepetitionCount = repeated ? previous!.RepetitionCount + 1 : 1,
         };
     }
 }

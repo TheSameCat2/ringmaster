@@ -16,6 +16,8 @@ public enum AgentRunKind
 {
     Planner,
     Implementer,
+    Repairer,
+    Reviewer,
 }
 
 public enum AgentSandboxMode
@@ -86,6 +88,25 @@ public sealed record class ImplementerAgentOutput
     public IReadOnlyList<string> RecommendedNextChecks { get; init; } = [];
     public bool NeedsHuman { get; init; }
     public string? BlockerReasonCode { get; init; }
+    public string? BlockerSummary { get; init; }
+    public IReadOnlyList<string> Questions { get; init; } = [];
+}
+
+public sealed record class ReviewerFinding
+{
+    public required string Severity { get; init; }
+    public required string Message { get; init; }
+}
+
+public sealed record class ReviewerAgentOutput
+{
+    public required string Verdict { get; init; }
+    public string? Risk { get; init; }
+    public required string Summary { get; init; }
+    public IReadOnlyList<ReviewerFinding> Findings { get; init; } = [];
+    public IReadOnlyList<string> RequiredRepairs { get; init; } = [];
+    public string? RecommendedPrMode { get; init; }
+    public bool NeedsHuman { get; init; }
     public string? BlockerSummary { get; init; }
     public IReadOnlyList<string> Questions { get; init; } = [];
 }

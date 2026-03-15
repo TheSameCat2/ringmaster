@@ -5,7 +5,6 @@ using Ringmaster.App.CommandLine;
 using Ringmaster.Codex;
 using Ringmaster.Core.Jobs;
 using Ringmaster.Git;
-using Ringmaster.Infrastructure.Fakes;
 using Ringmaster.Infrastructure.Configuration;
 using Ringmaster.Infrastructure.Persistence;
 using Ringmaster.Infrastructure.Processes;
@@ -50,6 +49,10 @@ builder.Services.AddSingleton<RepositoryPreparationService>(serviceProvider =>
 builder.Services.AddSingleton<ICodexRunner, CodexExecRunner>();
 builder.Services.AddSingleton<IAgentRunner, CodexAgentRunner>();
 builder.Services.AddSingleton<CodexPromptBuilder>();
+builder.Services.AddSingleton<IFailureClassifier, DeterministicFailureClassifier>();
+builder.Services.AddSingleton(new RepairLoopPolicy());
+builder.Services.AddSingleton<RepairLoopPolicyEvaluator>();
+builder.Services.AddSingleton<PullRequestDraftBuilder>();
 builder.Services.AddSingleton<IStateMachine, RingmasterStateMachine>();
 builder.Services.AddSingleton<IStageRunner>(serviceProvider =>
 {
@@ -77,10 +80,26 @@ builder.Services.AddSingleton<IStageRunner>(serviceProvider =>
         serviceProvider.GetRequiredService<GitWorktreeManager>(),
         serviceProvider.GetRequiredService<AtomicFileWriter>(),
         serviceProvider.GetRequiredService<IJobRepository>(),
-        serviceProvider.GetRequiredService<TimeProvider>());
+        serviceProvider.GetRequiredService<TimeProvider>(),
+        serviceProvider.GetRequiredService<IFailureClassifier>(),
+        serviceProvider.GetRequiredService<RepairLoopPolicyEvaluator>());
 });
-builder.Services.AddSingleton<IStageRunner>(_ => new FakeStageRunner(JobStage.REPAIRING, StageRole.Implementer, JobState.VERIFYING, "Repair completed."));
-builder.Services.AddSingleton<IStageRunner>(_ => new FakeStageRunner(JobStage.REVIEWING, StageRole.Reviewer, JobState.READY_FOR_PR, "Reviewer approved."));
+builder.Services.AddSingleton<IStageRunner>(serviceProvider =>
+{
+    return new RepairingStageRunner(
+        serviceProvider.GetRequiredService<IAgentRunner>(),
+        serviceProvider.GetRequiredService<CodexPromptBuilder>(),
+        serviceProvider.GetRequiredService<AtomicFileWriter>(),
+        serviceProvider.GetRequiredService<RepairLoopPolicy>());
+});
+builder.Services.AddSingleton<IStageRunner>(serviceProvider =>
+{
+    return new ReviewingStageRunner(
+        serviceProvider.GetRequiredService<IAgentRunner>(),
+        serviceProvider.GetRequiredService<CodexPromptBuilder>(),
+        serviceProvider.GetRequiredService<AtomicFileWriter>(),
+        serviceProvider.GetRequiredService<PullRequestDraftBuilder>());
+});
 builder.Services.AddSingleton<JobEngine>();
 builder.Services.AddSingleton<RingmasterCli>();
 

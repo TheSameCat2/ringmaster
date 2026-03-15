@@ -46,13 +46,120 @@ public sealed class CodexPromptBuilder
 
     public AgentPromptDefinition BuildImplementerPrompt(StageExecutionContext context)
     {
+        return BuildImplementerLikePrompt(
+            context,
+            "# Implementer Role",
+            "You are the Ringmaster implementer for one software job.",
+            "Read this material in order:",
+            [
+                "1. `JOB.md`",
+                "2. `STATUS.json`",
+                "3. `PLAN.md`",
+                "4. `NOTES.md`",
+            ],
+            [
+                "- Make the smallest viable change that satisfies the job.",
+                "- Do not edit `STATUS.json`.",
+                "- Do not commit or open PRs.",
+                "- If blocked, return a blocked result with a clear reason and questions.",
+            ],
+            [
+                "- Apply the code changes in the worktree.",
+                "- Summarize what changed and which files were modified.",
+                "- Return only data that matches the provided schema.",
+            ]);
+    }
+
+    public AgentPromptDefinition BuildRepairPrompt(StageExecutionContext context)
+    {
+        return BuildImplementerLikePrompt(
+            context,
+            "# Repair Implementer Role",
+            "You are the Ringmaster implementer rerunning in repair mode after verification or review feedback.",
+            "Read this material in order:",
+            [
+                "1. `JOB.md`",
+                "2. `STATUS.json`",
+                "3. `PLAN.md`",
+                "4. `NOTES.md`",
+                "5. `artifacts/repair-summary.json`",
+                "6. `REVIEW.md`",
+            ],
+            [
+                "- Focus only on the current failure or reviewer findings.",
+                "- Preserve good existing work unless the failure summary proves it is wrong.",
+                "- Do not edit `STATUS.json`.",
+                "- Do not commit or open PRs.",
+                "- If blocked, return a blocked result with a clear reason and questions.",
+            ],
+            [
+                "- Apply the smallest viable repair.",
+                "- Summarize the fix and list modified files.",
+                "- Return only data that matches the provided schema.",
+            ]);
+    }
+
+    public AgentPromptDefinition BuildReviewerPrompt(StageExecutionContext context)
+    {
+        string worktreePath = context.Job.Status.Git?.WorktreePath
+            ?? throw new InvalidOperationException("Reviewer prompt requires a prepared worktree.");
+
+        StringBuilder prompt = new();
+        prompt.AppendLine("# Reviewer Role");
+        prompt.AppendLine();
+        prompt.AppendLine("You are the Ringmaster reviewer for one software job.");
+        prompt.AppendLine();
+        prompt.AppendLine("Workspace paths:");
+        prompt.AppendLine($"- Worktree root: `{worktreePath}`");
+        prompt.AppendLine($"- Job directory: `{context.Job.JobDirectoryPath}`");
+        prompt.AppendLine("- Sandbox: read-only");
+        prompt.AppendLine("- Forbidden: code edits, commits, PR creation, STATUS.json changes");
+        prompt.AppendLine();
+        prompt.AppendLine("Read this material in order:");
+        prompt.AppendLine("1. `JOB.md`");
+        prompt.AppendLine("2. `PLAN.md`");
+        prompt.AppendLine("3. `NOTES.md`");
+        prompt.AppendLine("4. `artifacts/verification-summary.json`");
+        prompt.AppendLine("5. `artifacts/diff.patch`");
+        prompt.AppendLine("6. `artifacts/repair-summary.json`");
+        prompt.AppendLine("7. `REVIEW.md`");
+        prompt.AppendLine();
+        prompt.AppendLine("Behavior rules:");
+        prompt.AppendLine("- Review the existing change set and verification evidence only.");
+        prompt.AppendLine("- Do not edit code or lifecycle state directly.");
+        prompt.AppendLine("- Return approve, request_repair, or human_review_required.");
+        prompt.AppendLine("- Use human_review_required for ambiguity, unacceptable risk, or policy violations.");
+        prompt.AppendLine();
+        prompt.AppendLine("Completion checklist:");
+        prompt.AppendLine("- Provide a concise review summary.");
+        prompt.AppendLine("- List findings and any required repairs.");
+        prompt.AppendLine("- Return only data that matches the provided schema.");
+        prompt.AppendLine();
+        prompt.AppendLine(context.Job.JobMarkdown);
+
+        return new AgentPromptDefinition
+        {
+            PromptText = prompt.ToString(),
+            OutputSchemaJson = BuildReviewerSchema(),
+        };
+    }
+
+    private AgentPromptDefinition BuildImplementerLikePrompt(
+        StageExecutionContext context,
+        string heading,
+        string roleDescription,
+        string readHeading,
+        IReadOnlyList<string> readItems,
+        IReadOnlyList<string> behaviorRules,
+        IReadOnlyList<string> checklistItems)
+    {
         string worktreePath = context.Job.Status.Git?.WorktreePath
             ?? throw new InvalidOperationException("Implementer prompt requires a prepared worktree.");
 
         StringBuilder prompt = new();
-        prompt.AppendLine("# Implementer Role");
+        prompt.AppendLine(heading);
         prompt.AppendLine();
-        prompt.AppendLine("You are the Ringmaster implementer for one software job.");
+        prompt.AppendLine(roleDescription);
         prompt.AppendLine();
         prompt.AppendLine("Workspace paths:");
         prompt.AppendLine($"- Worktree root: `{worktreePath}`");
@@ -60,22 +167,26 @@ public sealed class CodexPromptBuilder
         prompt.AppendLine($"- Writable directories: `{worktreePath}` and `{context.Job.JobDirectoryPath}`");
         prompt.AppendLine("- Forbidden: `.ringmaster/jobs/**/STATUS.json`, commits, PR creation");
         prompt.AppendLine();
-        prompt.AppendLine("Read this material in order:");
-        prompt.AppendLine("1. `JOB.md`");
-        prompt.AppendLine("2. `STATUS.json`");
-        prompt.AppendLine("3. `PLAN.md`");
-        prompt.AppendLine("4. `NOTES.md`");
+        prompt.AppendLine(readHeading);
+        foreach (string item in readItems)
+        {
+            prompt.AppendLine(item);
+        }
+
         prompt.AppendLine();
         prompt.AppendLine("Behavior rules:");
-        prompt.AppendLine("- Make the smallest viable change that satisfies the job.");
-        prompt.AppendLine("- Do not edit `STATUS.json`.");
-        prompt.AppendLine("- Do not commit or open PRs.");
-        prompt.AppendLine("- If blocked, return a blocked result with a clear reason and questions.");
+        foreach (string rule in behaviorRules)
+        {
+            prompt.AppendLine(rule);
+        }
+
         prompt.AppendLine();
         prompt.AppendLine("Completion checklist:");
-        prompt.AppendLine("- Apply the code changes in the worktree.");
-        prompt.AppendLine("- Summarize what changed and which files were modified.");
-        prompt.AppendLine("- Return only data that matches the provided schema.");
+        foreach (string item in checklistItems)
+        {
+            prompt.AppendLine(item);
+        }
+
         prompt.AppendLine();
         prompt.AppendLine(context.Job.JobMarkdown);
 
@@ -131,6 +242,46 @@ public sealed class CodexPromptBuilder
             },
             "needsHuman": { "type": "boolean" },
             "blockerReasonCode": { "type": ["string", "null"] },
+            "blockerSummary": { "type": ["string", "null"] },
+            "questions": {
+              "type": "array",
+              "items": { "type": "string" }
+            }
+          }
+        }
+        """;
+    }
+
+    private static string BuildReviewerSchema()
+    {
+        return """
+        {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["verdict", "summary", "findings", "requiredRepairs", "needsHuman"],
+          "properties": {
+            "verdict": { "type": "string", "enum": ["approve", "request_repair", "human_review_required"] },
+            "risk": { "type": ["string", "null"], "enum": ["low", "medium", "high", null] },
+            "summary": { "type": "string" },
+            "findings": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["severity", "message"],
+                "properties": {
+                  "severity": { "type": "string" },
+                  "message": { "type": "string" }
+                }
+              }
+            },
+            "requiredRepairs": {
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "recommendedPrMode": { "type": ["string", "null"] },
+            "needsHuman": { "type": "boolean" },
             "blockerSummary": { "type": ["string", "null"] },
             "questions": {
               "type": "array",

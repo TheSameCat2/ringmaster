@@ -172,4 +172,68 @@ public sealed class JobSnapshotRebuilderTests
         Assert.True(rebuilt.Git.HasUncommittedChanges);
         Assert.Equal(["README.md"], rebuilt.Git.ChangedFiles);
     }
+
+    [Fact]
+    public void RebuildTracksRepeatedFailuresWithoutChangingLifecycleState()
+    {
+        DateTimeOffset createdAt = new(2026, 3, 15, 16, 45, 0, TimeSpan.Zero);
+        JobDefinition definition = new()
+        {
+            JobId = "job-20260315-7f3c9b2a",
+            Title = "Add retry handling",
+            Description = "Implement bounded retries for retryable failures.",
+            Repo = new JobRepositoryTarget
+            {
+                BaseBranch = "master",
+                VerificationProfile = "default",
+            },
+            CreatedAtUtc = createdAt,
+            CreatedBy = "tester",
+        };
+        JobStatusSnapshot initialStatus = JobStatusSnapshot.CreateInitial(definition);
+        JobSnapshotRebuilder rebuilder = new();
+
+        JobStatusSnapshot rebuilt = rebuilder.Rebuild(
+        [
+            JobEventRecord.CreateJobCreated(1, definition, initialStatus),
+            JobEventRecord.CreateFailureRecorded(definition.JobId, FailureCategory.RepairableCodeFailure, "verify:tests:RetryTests.Should_retry", "Test failure in RetryTests.Should_retry.", createdAt.AddMinutes(1)) with { Sequence = 2 },
+            JobEventRecord.CreateFailureRecorded(definition.JobId, FailureCategory.RepairableCodeFailure, "verify:tests:RetryTests.Should_retry", "Test failure in RetryTests.Should_retry.", createdAt.AddMinutes(2)) with { Sequence = 3 },
+        ]);
+
+        Assert.Equal(JobState.QUEUED, rebuilt.State);
+        Assert.NotNull(rebuilt.LastFailure);
+        Assert.Equal(2, rebuilt.LastFailure.RepetitionCount);
+        Assert.Equal(createdAt.AddMinutes(1), rebuilt.LastFailure.FirstSeenAtUtc);
+        Assert.Equal(createdAt.AddMinutes(2), rebuilt.LastFailure.LastSeenAtUtc);
+    }
+
+    [Fact]
+    public void RebuildUpdatesReviewSnapshotFromReviewRecordedEvents()
+    {
+        DateTimeOffset createdAt = new(2026, 3, 15, 16, 45, 0, TimeSpan.Zero);
+        JobDefinition definition = new()
+        {
+            JobId = "job-20260315-7f3c9b2a",
+            Title = "Add retry handling",
+            Description = "Implement bounded retries for retryable failures.",
+            Repo = new JobRepositoryTarget
+            {
+                BaseBranch = "master",
+                VerificationProfile = "default",
+            },
+            CreatedAtUtc = createdAt,
+            CreatedBy = "tester",
+        };
+        JobStatusSnapshot initialStatus = JobStatusSnapshot.CreateInitial(definition);
+        JobSnapshotRebuilder rebuilder = new();
+
+        JobStatusSnapshot rebuilt = rebuilder.Rebuild(
+        [
+            JobEventRecord.CreateJobCreated(1, definition, initialStatus),
+            JobEventRecord.CreateReviewRecorded(definition.JobId, ReviewVerdict.RequestRepair, ReviewRisk.Medium, "Need one more test.", createdAt.AddMinutes(1)) with { Sequence = 2 },
+        ]);
+
+        Assert.Equal(ReviewVerdict.RequestRepair, rebuilt.Review.Verdict);
+        Assert.Equal(ReviewRisk.Medium, rebuilt.Review.Risk);
+    }
 }

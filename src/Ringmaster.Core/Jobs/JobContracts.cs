@@ -60,6 +60,11 @@ public interface IStateMachine
     StageDescriptor? GetStageDescriptor(JobState state);
 }
 
+public interface IFailureClassifier
+{
+    FailureClassification Classify(FailureClassificationContext context);
+}
+
 public interface IStageRunner
 {
     JobStage Stage { get; }
@@ -97,6 +102,9 @@ public sealed record class StageExecutionResult
     public string Summary { get; init; } = string.Empty;
     public BlockerInfo? Blocker { get; init; }
     public FailureCategory? FailureCategory { get; init; }
+    public string? FailureSignature { get; init; }
+    public ReviewVerdict? ReviewVerdict { get; init; }
+    public ReviewRisk? ReviewRisk { get; init; }
     public RunArtifacts Artifacts { get; init; } = new();
     public string? SessionId { get; init; }
     public int? ExitCode { get; init; }
@@ -105,6 +113,10 @@ public sealed record class StageExecutionResult
         JobState nextState,
         string summary,
         RunArtifacts? artifacts = null,
+        FailureCategory? failureCategory = null,
+        string? failureSignature = null,
+        ReviewVerdict? reviewVerdict = null,
+        ReviewRisk? reviewRisk = null,
         string? sessionId = null,
         int? exitCode = null)
     {
@@ -113,6 +125,10 @@ public sealed record class StageExecutionResult
             Outcome = StageExecutionOutcome.Succeeded,
             NextState = nextState,
             Summary = summary,
+            FailureCategory = failureCategory,
+            FailureSignature = failureSignature,
+            ReviewVerdict = reviewVerdict,
+            ReviewRisk = reviewRisk,
             Artifacts = artifacts ?? new RunArtifacts(),
             SessionId = sessionId,
             ExitCode = exitCode,
@@ -123,6 +139,10 @@ public sealed record class StageExecutionResult
         BlockerInfo blocker,
         string summary,
         RunArtifacts? artifacts = null,
+        FailureCategory? failureCategory = null,
+        string? failureSignature = null,
+        ReviewVerdict? reviewVerdict = null,
+        ReviewRisk? reviewRisk = null,
         string? sessionId = null,
         int? exitCode = null)
     {
@@ -131,6 +151,10 @@ public sealed record class StageExecutionResult
             Outcome = StageExecutionOutcome.Blocked,
             Summary = summary,
             Blocker = blocker,
+            FailureCategory = failureCategory,
+            FailureSignature = failureSignature,
+            ReviewVerdict = reviewVerdict,
+            ReviewRisk = reviewRisk,
             Artifacts = artifacts ?? new RunArtifacts(),
             SessionId = sessionId,
             ExitCode = exitCode,
@@ -141,6 +165,7 @@ public sealed record class StageExecutionResult
         FailureCategory failureCategory,
         string summary,
         RunArtifacts? artifacts = null,
+        string? failureSignature = null,
         string? sessionId = null,
         int? exitCode = null)
     {
@@ -149,9 +174,37 @@ public sealed record class StageExecutionResult
             Outcome = StageExecutionOutcome.Failed,
             Summary = summary,
             FailureCategory = failureCategory,
+            FailureSignature = failureSignature,
             Artifacts = artifacts ?? new RunArtifacts(),
             SessionId = sessionId,
             ExitCode = exitCode,
         };
     }
+}
+
+public sealed record class FailureClassificationContext
+{
+    public required JobStage Stage { get; init; }
+    public required string CommandName { get; init; }
+    public required string CommandFileName { get; init; }
+    public IReadOnlyList<string> CommandArguments { get; init; } = [];
+    public required int ExitCode { get; init; }
+    public required bool TimedOut { get; init; }
+    public string StdoutText { get; init; } = string.Empty;
+    public string StderrText { get; init; } = string.Empty;
+    public IReadOnlyList<string> ChangedFiles { get; init; } = [];
+}
+
+public sealed record class FailureClassification
+{
+    public required FailureCategory Category { get; init; }
+    public required string Signature { get; init; }
+    public required string Summary { get; init; }
+    public IReadOnlyList<string> Highlights { get; init; } = [];
+}
+
+public sealed record class RepairLoopPolicy
+{
+    public int MaxRepairAttempts { get; init; } = 4;
+    public int MaxRepeatedFailureSignatures { get; init; } = 2;
 }

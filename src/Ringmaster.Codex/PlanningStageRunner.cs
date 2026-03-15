@@ -66,9 +66,9 @@ public sealed class PlanningStageRunner(
             return StageExecutionResult.Failed(
                 FailureCategory.ToolFailure,
                 $"Planner Codex run failed with exit code {agentResult.ExitCode}.",
-                agentResult.Artifacts,
-                agentResult.SessionId,
-                agentResult.ExitCode);
+                artifacts: agentResult.Artifacts,
+                sessionId: agentResult.SessionId,
+                exitCode: agentResult.ExitCode);
         }
 
         PlannerAgentOutput output = DeserializeOutput<PlannerAgentOutput>(agentResult.FinalOutputText);
@@ -82,17 +82,17 @@ public sealed class PlanningStageRunner(
             return StageExecutionResult.Blocked(
                 CreateBlocker(output, JobState.PREPARING),
                 output.BlockerSummary ?? output.Summary,
-                agentResult.Artifacts,
-                agentResult.SessionId,
-                agentResult.ExitCode);
+                artifacts: agentResult.Artifacts,
+                sessionId: agentResult.SessionId,
+                exitCode: agentResult.ExitCode);
         }
 
         return StageExecutionResult.Succeeded(
             JobState.IMPLEMENTING,
             output.Summary,
-            agentResult.Artifacts,
-            agentResult.SessionId,
-            agentResult.ExitCode);
+            artifacts: agentResult.Artifacts,
+            sessionId: agentResult.SessionId,
+            exitCode: agentResult.ExitCode);
     }
 
     private static T DeserializeOutput<T>(string? json)

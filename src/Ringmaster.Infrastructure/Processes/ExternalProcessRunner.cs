@@ -9,10 +9,11 @@ public sealed class ExternalProcessRunner(TimeProvider timeProvider) : IExternal
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(spec.FileName);
         ArgumentException.ThrowIfNullOrWhiteSpace(spec.WorkingDirectory);
+        string resolvedFileName = ResolveFileName(spec.FileName, spec.WorkingDirectory);
 
         ProcessStartInfo startInfo = new()
         {
-            FileName = spec.FileName,
+            FileName = resolvedFileName,
             WorkingDirectory = spec.WorkingDirectory,
             RedirectStandardInput = spec.StandardInputText is not null,
             RedirectStandardOutput = true,
@@ -38,7 +39,7 @@ public sealed class ExternalProcessRunner(TimeProvider timeProvider) : IExternal
         DateTimeOffset startedAtUtc = timeProvider.GetUtcNow();
         if (!process.Start())
         {
-            throw new InvalidOperationException($"Failed to start process '{spec.FileName}'.");
+            throw new InvalidOperationException($"Failed to start process '{resolvedFileName}'.");
         }
 
         if (spec.StandardInputText is not null)
@@ -92,6 +93,21 @@ public sealed class ExternalProcessRunner(TimeProvider timeProvider) : IExternal
             StderrPath = spec.StderrPath,
             ProcessId = process.Id,
         };
+    }
+
+    private static string ResolveFileName(string fileName, string workingDirectory)
+    {
+        if (Path.IsPathRooted(fileName))
+        {
+            return fileName;
+        }
+
+        bool containsDirectorySeparator = fileName.Contains(Path.DirectorySeparatorChar)
+            || fileName.Contains(Path.AltDirectorySeparatorChar);
+
+        return containsDirectorySeparator
+            ? Path.GetFullPath(Path.Combine(workingDirectory, fileName))
+            : fileName;
     }
 
     private static async Task<string> PumpAsync(StreamReader reader, string? outputPath, CancellationToken cancellationToken)

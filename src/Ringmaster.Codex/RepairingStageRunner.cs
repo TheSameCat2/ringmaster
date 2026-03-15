@@ -4,12 +4,13 @@ using Ringmaster.Infrastructure.Persistence;
 
 namespace Ringmaster.Codex;
 
-public sealed class ImplementingStageRunner(
+public sealed class RepairingStageRunner(
     IAgentRunner agentRunner,
     CodexPromptBuilder promptBuilder,
-    AtomicFileWriter atomicFileWriter) : IStageRunner
+    AtomicFileWriter atomicFileWriter,
+    RepairLoopPolicy repairLoopPolicy) : IStageRunner
 {
-    public JobStage Stage => JobStage.IMPLEMENTING;
+    public JobStage Stage => JobStage.REPAIRING;
     public StageRole Role => StageRole.Implementer;
 
     public StageRunDescriptor DescribeRun(StoredJob job)
@@ -17,19 +18,37 @@ public sealed class ImplementingStageRunner(
         return new StageRunDescriptor
         {
             Tool = "codex",
-            Command = ["codex", "exec", "implementer"],
+            Command = ["codex", "exec", "repairer"],
         };
     }
 
     public async Task<StageExecutionResult> RunAsync(StageExecutionContext context, CancellationToken cancellationToken)
     {
+        if (context.Job.Status.Attempts.Repairing > repairLoopPolicy.MaxRepairAttempts)
+        {
+            return StageExecutionResult.Blocked(
+                new BlockerInfo
+                {
+                    ReasonCode = BlockerReasonCode.RepeatedFailureSignature,
+                    Summary = $"Repair budget exhausted after {repairLoopPolicy.MaxRepairAttempts} attempts.",
+                    Questions =
+                    [
+                        "Inspect the latest failure summary and decide whether to continue the repair loop manually.",
+                    ],
+                    ResumeState = JobState.REPAIRING,
+                },
+                $"Repair budget exhausted after {repairLoopPolicy.MaxRepairAttempts} attempts.",
+                failureCategory: FailureCategory.MaxAttemptsExceeded,
+                failureSignature: "repair:max-attempts");
+        }
+
         string worktreePath = context.Job.Status.Git?.WorktreePath
-            ?? throw new InvalidOperationException("Implementer run requires a prepared worktree.");
-        AgentPromptDefinition prompt = promptBuilder.BuildImplementerPrompt(context);
+            ?? throw new InvalidOperationException("Repair run requires a prepared worktree.");
+        AgentPromptDefinition prompt = promptBuilder.BuildRepairPrompt(context);
         AgentExecutionResult agentResult = await agentRunner.RunAsync(
             new AgentExecutionRequest
             {
-                Kind = AgentRunKind.Implementer,
+                Kind = AgentRunKind.Repairer,
                 WorkingDirectory = worktreePath,
                 AdditionalWritableDirectories = [context.Job.JobDirectoryPath],
                 RunDirectoryPath = context.RunDirectoryPath,
@@ -43,7 +62,7 @@ public sealed class ImplementingStageRunner(
         {
             return StageExecutionResult.Failed(
                 FailureCategory.ToolFailure,
-                $"Implementer Codex run failed with exit code {agentResult.ExitCode}.",
+                $"Repair Codex run failed with exit code {agentResult.ExitCode}.",
                 artifacts: agentResult.Artifacts,
                 sessionId: agentResult.SessionId,
                 exitCode: agentResult.ExitCode);
@@ -121,7 +140,7 @@ public sealed class ImplementingStageRunner(
             ReasonCode = ParseReasonCode(output.BlockerReasonCode),
             Summary = output.BlockerSummary ?? output.Summary,
             Questions = output.Questions,
-            ResumeState = JobState.IMPLEMENTING,
+            ResumeState = JobState.REPAIRING,
         };
     }
 

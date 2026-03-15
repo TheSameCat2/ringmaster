@@ -16,7 +16,9 @@ public sealed class VerifyingStageRunner(
     GitWorktreeManager worktreeManager,
     AtomicFileWriter atomicFileWriter,
     IJobRepository jobRepository,
-    TimeProvider timeProvider) : IStageRunner
+    TimeProvider timeProvider,
+    IFailureClassifier failureClassifier,
+    RepairLoopPolicyEvaluator repairLoopPolicyEvaluator) : IStageRunner
 {
     public JobStage Stage => JobStage.VERIFYING;
     public StageRole Role => StageRole.SystemVerifier;
@@ -118,12 +120,44 @@ public sealed class VerifyingStageRunner(
 
         if (failure is not null && failureDefinition is not null)
         {
-            FailureCategory category = failure.TimedOut ? FailureCategory.ToolFailure : FailureCategory.RepairableCodeFailure;
-            string summary = failure.TimedOut
-                ? $"Verification command '{failureDefinition.Name}' timed out after {failureDefinition.TimeoutSeconds} seconds."
-                : $"Verification command '{failureDefinition.Name}' failed with exit code {failure.ExitCode}.";
+            VerificationCommandRecord failureRecord = commandRecords[^1];
+            FailureClassification classification = await ClassifyFailureAsync(
+                context,
+                changedFiles: context.Job.Status.Git?.ChangedFiles ?? [],
+                failureDefinition,
+                failureRecord,
+                cancellationToken);
+            await PersistRepairArtifactAsync(
+                context,
+                verificationProfile,
+                failureDefinition,
+                failureRecord,
+                classification,
+                cancellationToken);
 
-            return StageExecutionResult.Failed(category, summary, artifacts);
+            VerificationFailureDisposition disposition = repairLoopPolicyEvaluator.Decide(context.Job.Status, classification);
+
+            return disposition.Action switch
+            {
+                VerificationFailureAction.Repair => StageExecutionResult.Succeeded(
+                    JobState.REPAIRING,
+                    classification.Summary,
+                    artifacts,
+                    classification.Category,
+                    classification.Signature),
+                VerificationFailureAction.Block => StageExecutionResult.Blocked(
+                    disposition.Blocker ?? throw new InvalidOperationException("Blocked verification failures must provide blocker info."),
+                    classification.Summary,
+                    artifacts,
+                    classification.Category,
+                    classification.Signature),
+                VerificationFailureAction.Fail => StageExecutionResult.Failed(
+                    classification.Category,
+                    classification.Summary,
+                    artifacts,
+                    classification.Signature),
+                _ => throw new InvalidOperationException($"Unhandled verification failure action '{disposition.Action}'."),
+            };
         }
 
         return StageExecutionResult.Succeeded(JobState.REVIEWING, $"Verification profile '{verificationProfile}' passed.", artifacts);
@@ -192,6 +226,65 @@ public sealed class VerifyingStageRunner(
         {
             EventLog = Path.GetFileName(commandsPath),
         };
+    }
+
+    private async Task<FailureClassification> ClassifyFailureAsync(
+        StageExecutionContext context,
+        IReadOnlyList<string> changedFiles,
+        VerificationCommandDefinition failureDefinition,
+        VerificationCommandRecord failureRecord,
+        CancellationToken cancellationToken)
+    {
+        string stdoutText = failureRecord.StdoutPath is { Length: > 0 }
+            ? await File.ReadAllTextAsync(Path.Combine(context.RunDirectoryPath, failureRecord.StdoutPath), cancellationToken)
+            : string.Empty;
+        string stderrText = failureRecord.StderrPath is { Length: > 0 }
+            ? await File.ReadAllTextAsync(Path.Combine(context.RunDirectoryPath, failureRecord.StderrPath), cancellationToken)
+            : string.Empty;
+
+        return failureClassifier.Classify(
+            new FailureClassificationContext
+            {
+                Stage = JobStage.VERIFYING,
+                CommandName = failureDefinition.Name,
+                CommandFileName = failureDefinition.FileName,
+                CommandArguments = failureDefinition.Arguments,
+                ExitCode = failureRecord.ExitCode,
+                TimedOut = failureRecord.TimedOut,
+                StdoutText = stdoutText,
+                StderrText = stderrText,
+                ChangedFiles = changedFiles,
+            });
+    }
+
+    private async Task PersistRepairArtifactAsync(
+        StageExecutionContext context,
+        string verificationProfile,
+        VerificationCommandDefinition failureDefinition,
+        VerificationCommandRecord failureRecord,
+        FailureClassification classification,
+        CancellationToken cancellationToken)
+    {
+        string artifactsDirectory = Path.Combine(context.Job.JobDirectoryPath, "artifacts");
+        await atomicFileWriter.WriteJsonAsync(
+            Path.Combine(artifactsDirectory, "repair-summary.json"),
+            new VerificationFailureSummary
+            {
+                JobId = context.Job.Definition.JobId,
+                RunId = context.Run.RunId,
+                ProfileName = verificationProfile,
+                CommandName = failureDefinition.Name,
+                Category = classification.Category,
+                Signature = classification.Signature,
+                Summary = classification.Summary,
+                ExitCode = failureRecord.ExitCode,
+                TimedOut = failureRecord.TimedOut,
+                StdoutPath = failureRecord.StdoutPath,
+                StderrPath = failureRecord.StderrPath,
+                Highlights = classification.Highlights,
+                ChangedFiles = context.Job.Status.Git?.ChangedFiles ?? [],
+            },
+            cancellationToken);
     }
 
     private static StageExecutionResult BlockedForMissingConfig(string detail)

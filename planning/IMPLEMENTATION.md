@@ -337,19 +337,19 @@ Implement the durable repair cycle and review gate.
 
 ### Work packets
 
-* [ ] **P5.1** Implement deterministic failure classification.
-* [ ] **P5.2** Implement normalized failure signatures.
-* [ ] **P5.3** Implement retry policy objects and bounded retry counters.
-* [ ] **P5.4** Implement condensed verifier failure artifacts for repair prompts.
-* [ ] **P5.5** Implement repair-mode implementer prompts.
-* [ ] **P5.6** Implement reviewer prompts and `REVIEW.md`.
-* [ ] **P5.7** Implement verdict handling:
+* [x] **P5.1** Implement deterministic failure classification.
+* [x] **P5.2** Implement normalized failure signatures.
+* [x] **P5.3** Implement retry policy objects and bounded retry counters.
+* [x] **P5.4** Implement condensed verifier failure artifacts for repair prompts.
+* [x] **P5.5** Implement repair-mode implementer prompts.
+* [x] **P5.6** Implement reviewer prompts and `REVIEW.md`.
+* [x] **P5.7** Implement verdict handling:
 
   * approved
   * request repair
   * human review required
-* [ ] **P5.8** Implement `READY_FOR_PR` and `PR.md` generation.
-* [ ] **P5.9** Add integration tests for:
+* [x] **P5.8** Implement `READY_FOR_PR` and `PR.md` generation.
+* [x] **P5.9** Add integration tests for:
 
   * compile failure -> repair
   * test failure -> repair
@@ -979,11 +979,38 @@ Files: src/Ringmaster.Core/Jobs/JobContracts.cs; src/Ringmaster.Core/Jobs/JobEng
 Follow-ups: Phase 5 can now classify real verifier outcomes and send repair/review prompts while keeping run.json authoritative for exit codes and Codex session tracking.
 ```
 
+```text
+2026-03-15 18:34 UTC
+Packet: P5.1-P5.4
+Summary: Added deterministic verification failure classification, normalized signatures, durable failure and review events, bounded repair-loop policy evaluation, and condensed repair-summary.json artifacts for repair prompts.
+Tests: dotnet build Ringmaster.sln; dotnet test tests/Ringmaster.IntegrationTests/Ringmaster.IntegrationTests.csproj --filter PhaseFiveIntegrationTests; dotnet test Ringmaster.sln
+Files: src/Ringmaster.Core/Jobs/JobContracts.cs; src/Ringmaster.Core/Jobs/JobEnums.cs; src/Ringmaster.Core/Jobs/JobEventRecord.cs; src/Ringmaster.Core/Jobs/JobSnapshotRebuilder.cs; src/Ringmaster.Core/Jobs/DeterministicFailureClassifier.cs; src/Ringmaster.Core/Jobs/RepairLoopPolicyEvaluator.cs; src/Ringmaster.Git/VerifyingStageRunner.cs; src/Ringmaster.Git/GitModels.cs; tests/Ringmaster.Core.Tests/DeterministicFailureClassifierTests.cs; tests/Ringmaster.Core.Tests/JobSnapshotRebuilderTests.cs
+Follow-ups: Phase 6 can reuse the same failure and review event history for crash recovery and scheduler decisions.
+```
+
+```text
+2026-03-15 18:34 UTC
+Packet: P5.5-P5.8
+Summary: Replaced fake repair and reviewer stages with real Codex-backed runners, added repair-mode and reviewer prompts, persisted REVIEW.md and review-summary.json, and generated durable PR.md drafts when review approves.
+Tests: dotnet build Ringmaster.sln; dotnet test tests/Ringmaster.IntegrationTests/Ringmaster.IntegrationTests.csproj --filter PhaseFiveIntegrationTests; dotnet test Ringmaster.sln
+Files: src/Ringmaster.Codex/CodexContracts.cs; src/Ringmaster.Codex/CodexPromptBuilder.cs; src/Ringmaster.Codex/RepairingStageRunner.cs; src/Ringmaster.Codex/ReviewingStageRunner.cs; src/Ringmaster.Codex/PullRequestDraftBuilder.cs; src/Ringmaster.App/Program.cs
+Follow-ups: Later GitHub integration can open PRs from the generated PR.md file without changing the reviewer contract.
+```
+
+```text
+2026-03-15 18:34 UTC
+Packet: P5.9
+Summary: Added end-to-end temp-repo scenarios covering compile failure to repair, test failure to repair, repeated identical failure blocking, and reviewer-requested repair before approval.
+Tests: dotnet build Ringmaster.sln; dotnet test tests/Ringmaster.IntegrationTests/Ringmaster.IntegrationTests.csproj --filter PhaseFiveIntegrationTests; dotnet test Ringmaster.sln
+Files: tests/Ringmaster.IntegrationTests/PhaseFiveIntegrationTests.cs; tests/Ringmaster.IntegrationTests/PhaseThreeIntegrationTests.cs; tests/Ringmaster.IntegrationTests/PhaseFourIntegrationTests.cs
+Follow-ups: The scheduler phase can now treat READY_FOR_PR and BLOCKED states as proven outputs of a real repair/review loop.
+```
+
 ---
 
 ## Immediate next step
 
-Start **Phase 5, Packet P5.1** and implement deterministic failure classification on top of the real verifier artifacts so repair decisions are driven by durable evidence instead of ad hoc stage summaries.
+Start **Phase 6, Packet P6.1** and introduce durable leases plus a scheduler-safe execution loop so jobs can survive process restarts and run unattended without overlapping work.
 
 [1]: https://developers.openai.com/codex/cli/?utm_source=chatgpt.com "Codex CLI"
 [2]: https://developers.openai.com/codex/learn/best-practices/?utm_source=chatgpt.com "Best practices"

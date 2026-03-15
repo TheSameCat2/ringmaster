@@ -154,7 +154,17 @@ public sealed class PhaseThreeIntegrationTests
             [
                 new PreparingStageRunner(repositoryRoot, repoConfigLoader, worktreeManager, jobRepository, timeProvider),
                 implementingRunner ?? new FakeStageRunner(JobStage.IMPLEMENTING, StageRole.Implementer, JobState.VERIFYING, "Implementer completed."),
-                new VerifyingStageRunner(repositoryRoot, repoConfigLoader, processRunner, gitCli, worktreeManager, atomicFileWriter, jobRepository, timeProvider),
+                new VerifyingStageRunner(
+                    repositoryRoot,
+                    repoConfigLoader,
+                    processRunner,
+                    gitCli,
+                    worktreeManager,
+                    atomicFileWriter,
+                    jobRepository,
+                    timeProvider,
+                    new DeterministicFailureClassifier(),
+                    new RepairLoopPolicyEvaluator(new RepairLoopPolicy())),
                 new FakeStageRunner(JobStage.REPAIRING, StageRole.Implementer, JobState.VERIFYING, "Repair completed."),
                 new FakeStageRunner(JobStage.REVIEWING, StageRole.Reviewer, JobState.READY_FOR_PR, "Reviewer approved."),
             ],

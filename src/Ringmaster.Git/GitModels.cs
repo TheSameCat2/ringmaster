@@ -55,6 +55,23 @@ public sealed record class VerificationSummary
     public IReadOnlyList<string> ChangedFiles { get; init; } = [];
 }
 
+public sealed record class VerificationFailureSummary
+{
+    public required string JobId { get; init; }
+    public required string RunId { get; init; }
+    public required string ProfileName { get; init; }
+    public required string CommandName { get; init; }
+    public required FailureCategory Category { get; init; }
+    public required string Signature { get; init; }
+    public required string Summary { get; init; }
+    public int ExitCode { get; init; }
+    public bool TimedOut { get; init; }
+    public string? StdoutPath { get; init; }
+    public string? StderrPath { get; init; }
+    public IReadOnlyList<string> Highlights { get; init; } = [];
+    public IReadOnlyList<string> ChangedFiles { get; init; } = [];
+}
+
 public sealed record class RepositoryPreparationResult
 {
     public bool Succeeded { get; init; }

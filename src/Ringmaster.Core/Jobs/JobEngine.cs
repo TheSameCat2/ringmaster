@@ -82,6 +82,34 @@ public sealed class JobEngine(
             await jobRepository.SaveRunAsync(jobId, completedRun, cancellationToken);
             status = await jobRepository.AppendEventAsync(jobId, JobEventRecord.CreateRunCompleted(completedRun), cancellationToken);
 
+            if (result.Outcome is not StageExecutionOutcome.Failed
+                && result.FailureCategory is not null
+                && !string.IsNullOrWhiteSpace(result.FailureSignature))
+            {
+                status = await jobRepository.AppendEventAsync(
+                    jobId,
+                    JobEventRecord.CreateFailureRecorded(
+                        jobId,
+                        result.FailureCategory.Value,
+                        result.FailureSignature,
+                        result.Summary,
+                        timeProvider.GetUtcNow()),
+                    cancellationToken);
+            }
+
+            if (result.ReviewVerdict is not null)
+            {
+                status = await jobRepository.AppendEventAsync(
+                    jobId,
+                    JobEventRecord.CreateReviewRecorded(
+                        jobId,
+                        result.ReviewVerdict.Value,
+                        result.ReviewRisk,
+                        result.Summary,
+                        timeProvider.GetUtcNow()),
+                    cancellationToken);
+            }
+
             switch (result.Outcome)
             {
                 case StageExecutionOutcome.Succeeded:
@@ -93,7 +121,15 @@ public sealed class JobEngine(
                     break;
 
                 case StageExecutionOutcome.Failed:
-                    status = await jobRepository.AppendEventAsync(jobId, JobEventRecord.CreateFailed(jobId, result.FailureCategory ?? FailureCategory.ToolFailure, result.Summary, timeProvider.GetUtcNow()), cancellationToken);
+                    status = await jobRepository.AppendEventAsync(
+                        jobId,
+                        JobEventRecord.CreateFailed(
+                            jobId,
+                            result.FailureCategory ?? FailureCategory.ToolFailure,
+                            result.FailureSignature ?? $"stage:{descriptor.Stage.ToString().ToLowerInvariant()}:{(result.FailureCategory ?? FailureCategory.ToolFailure).ToString().ToLowerInvariant()}",
+                            result.Summary,
+                            timeProvider.GetUtcNow()),
+                        cancellationToken);
                     break;
 
                 default:

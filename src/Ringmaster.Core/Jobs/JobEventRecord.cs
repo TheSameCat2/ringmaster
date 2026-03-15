@@ -41,6 +41,8 @@ public sealed record class JobEventRecord
     public int? ExitCode { get; init; }
     public FailureCategory? FailureCategory { get; init; }
     public BlockerInfo? Blocker { get; init; }
+    public ReviewVerdict? ReviewVerdict { get; init; }
+    public ReviewRisk? ReviewRisk { get; init; }
     public string? Summary { get; init; }
     public string? Signature { get; init; }
 
@@ -117,6 +119,46 @@ public sealed record class JobEventRecord
         };
     }
 
+    public static JobEventRecord CreateFailureRecorded(
+        string jobId,
+        FailureCategory failureCategory,
+        string signature,
+        string summary,
+        DateTimeOffset timestampUtc)
+    {
+        return new JobEventRecord
+        {
+            Sequence = 0,
+            TimestampUtc = timestampUtc,
+            Type = JobEventType.FailureRecorded,
+            JobId = jobId,
+            FailureCategory = failureCategory,
+            Signature = signature,
+            Summary = summary,
+            UpdatedAtUtc = timestampUtc,
+        };
+    }
+
+    public static JobEventRecord CreateReviewRecorded(
+        string jobId,
+        ReviewVerdict verdict,
+        ReviewRisk? risk,
+        string summary,
+        DateTimeOffset timestampUtc)
+    {
+        return new JobEventRecord
+        {
+            Sequence = 0,
+            TimestampUtc = timestampUtc,
+            Type = JobEventType.ReviewRecorded,
+            JobId = jobId,
+            ReviewVerdict = verdict,
+            ReviewRisk = risk,
+            Summary = summary,
+            UpdatedAtUtc = timestampUtc,
+        };
+    }
+
     public static JobEventRecord CreateRunCompleted(JobRunRecord run)
     {
         DateTimeOffset completedAt = run.CompletedAtUtc ?? run.StartedAtUtc;
@@ -149,7 +191,12 @@ public sealed record class JobEventRecord
         };
     }
 
-    public static JobEventRecord CreateFailed(string jobId, FailureCategory failureCategory, string summary, DateTimeOffset timestampUtc)
+    public static JobEventRecord CreateFailed(
+        string jobId,
+        FailureCategory failureCategory,
+        string signature,
+        string summary,
+        DateTimeOffset timestampUtc)
     {
         return new JobEventRecord
         {
@@ -159,7 +206,7 @@ public sealed record class JobEventRecord
             JobId = jobId,
             FailureCategory = failureCategory,
             Summary = summary,
-            Signature = $"fake:{failureCategory}",
+            Signature = signature,
             UpdatedAtUtc = timestampUtc,
         };
     }
