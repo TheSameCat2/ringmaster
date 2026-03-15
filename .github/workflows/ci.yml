@@ -1,0 +1,37 @@
+name: ci
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+
+jobs:
+  build-test-pack:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-latest
+          - windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Restore
+        run: dotnet restore Ringmaster.sln
+
+      - name: Build
+        run: dotnet build Ringmaster.sln --configuration Release --no-restore
+
+      - name: Test
+        run: dotnet test Ringmaster.sln --configuration Release --no-build
+
+      - name: Pack tool
+        run: dotnet pack src/Ringmaster.App/Ringmaster.App.csproj --configuration Release --no-build

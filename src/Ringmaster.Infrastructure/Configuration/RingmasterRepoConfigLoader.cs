@@ -16,13 +16,9 @@ public sealed class RingmasterRepoConfigLoader
 
         string json = await File.ReadAllTextAsync(configPath, cancellationToken);
         RingmasterRepoConfig config = RingmasterJsonSerializer.Deserialize<RingmasterRepoConfig>(json);
-
-        if (config.SchemaVersion != ProductInfo.SchemaVersion)
+        return config with
         {
-            throw new InvalidDataException(
-                $"Repository config schema version {config.SchemaVersion} is not supported. Expected {ProductInfo.SchemaVersion}.");
-        }
-
-        return config;
+            SchemaVersion = SchemaVersionSupport.NormalizeForRead("Repository config", config.SchemaVersion),
+        };
     }
 }

@@ -452,14 +452,14 @@ Make the product ready for daily professional use beyond the Arch Linux developm
 
 ### Work packets
 
-* [ ] **P8.1** Add CI matrix for Linux, macOS, and Windows build/test smoke.
-* [ ] **P8.2** Add cross-platform integration tests for path handling and file locking where practical.
-* [ ] **P8.3** Review all process invocations for shell assumptions.
-* [ ] **P8.4** Review all temp-file and lock-file behavior for portability.
-* [ ] **P8.5** Package the CLI as a .NET tool or equivalent release artifact.
-* [ ] **P8.6** Finalize end-user docs and sample config.
-* [ ] **P8.7** Add performance smoke tests for multiple queued jobs.
-* [ ] **P8.8** Add upgrade/migration handling for schema version changes.
+* [x] **P8.1** Add CI matrix for Linux, macOS, and Windows build/test smoke.
+* [x] **P8.2** Add cross-platform integration tests for path handling and file locking where practical.
+* [x] **P8.3** Review all process invocations for shell assumptions.
+* [x] **P8.4** Review all temp-file and lock-file behavior for portability.
+* [x] **P8.5** Package the CLI as a .NET tool or equivalent release artifact.
+* [x] **P8.6** Finalize end-user docs and sample config.
+* [x] **P8.7** Add performance smoke tests for multiple queued jobs.
+* [x] **P8.8** Add upgrade/migration handling for schema version changes.
 
 ### Notes
 
@@ -472,6 +472,34 @@ This phase exists to remove hidden Linux assumptions. The product may be built o
 * Packaging and installation are documented.
 * Upgrade path for schema changes exists.
 * Release candidate checklist passes.
+
+---
+
+## Phase 9 — Command completion and operator UX polish
+
+### Goal
+
+Close the remaining product-level CLI gaps that were not covered by the original packet list so the documented operator surface is fully usable.
+
+### Work packets
+
+* [ ] **P9.1** Implement `ringmaster init` runtime/config scaffolding.
+* [ ] **P9.2** Implement `ringmaster job resume` for blocked, abandoned, and ready-for-pr jobs.
+* [ ] **P9.3** Implement `ringmaster job unblock` with durable human-input storage and resume.
+* [ ] **P9.4** Implement `ringmaster job cancel` with explicit terminal semantics.
+* [ ] **P9.5** Implement `ringmaster logs` for run selection and tail/follow behavior.
+* [ ] **P9.6** Implement explicit operator-facing exit codes and wire them across commands.
+* [ ] **P9.7** Add integration coverage for the remaining operator commands and exit codes.
+
+### Notes
+
+The product document defines these commands and UX contracts, but the original implementation plan did not packetize them. This phase closes that gap explicitly.
+
+### Definition of done
+
+* The documented top-level CLI commands are implemented or intentionally deferred with explicit rationale.
+* Resume, unblock, cancel, and log inspection are proven by automated tests.
+* Operator commands use stable exit codes for success, blocked, failed, and tool/config errors.
 
 ---
 
@@ -1042,11 +1070,20 @@ Files: src/Ringmaster.Core/Jobs/PullRequestContracts.cs; src/Ringmaster.Core/Job
 Follow-ups: Phase 8 should harden the same command and cleanup paths for cross-platform process, lock, packaging, and schema-upgrade concerns.
 ```
 
+```text
+2026-03-15 20:31 UTC
+Packet: P8.1-P8.8
+Summary: Added a three-platform GitHub Actions matrix, removed the remaining bash-only integration fixture path, added portability and performance smoke tests, packaged the CLI as a .NET tool, published end-user docs plus a sample config, and introduced schema-version normalization for versioned runtime documents.
+Tests: git diff --check; dotnet build Ringmaster.sln; dotnet test Ringmaster.sln; dotnet pack src/Ringmaster.App/Ringmaster.App.csproj -c Release
+Files: .github/workflows/ci.yml; README.md; samples/sample-repo/README.md; samples/sample-repo/ringmaster.json; src/Ringmaster.App/Ringmaster.App.csproj; src/Ringmaster.Core/SchemaVersionSupport.cs; src/Ringmaster.Core/Jobs/JobEngine.cs; src/Ringmaster.Infrastructure/Configuration/RingmasterRepoConfigLoader.cs; src/Ringmaster.Infrastructure/Persistence/LocalFilesystemJobRepository.cs; tests/Ringmaster.IntegrationTests/PhaseFiveIntegrationTests.cs; tests/Ringmaster.IntegrationTests/PhaseEightIntegrationTests.cs
+Follow-ups: Phase 9 should finish the remaining documented CLI commands, human-intervention flows, and operator exit-code contracts.
+```
+
 ---
 
 ## Immediate next step
 
-Start **Phase 8, Packet P8.1** and add a cross-platform CI smoke matrix so the Linux-first implementation is continuously validated on macOS and Windows too.
+Start **Phase 9, Packet P9.1** and implement `ringmaster init` plus the remaining operator-command contracts that are documented in PRODUCT.md but still incomplete in the CLI.
 
 [1]: https://developers.openai.com/codex/cli/?utm_source=chatgpt.com "Codex CLI"
 [2]: https://developers.openai.com/codex/learn/best-practices/?utm_source=chatgpt.com "Best practices"

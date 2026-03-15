@@ -503,45 +503,113 @@ public sealed class PhaseFiveIntegrationTests
 
     private static async Task PrepareScriptedVerificationRepoAsync(TemporaryGitRepository repositoryRoot)
     {
-        VerificationCommandDefinition[] commands =
-        [
-            new()
-            {
-                Name = "compile",
-                FileName = "bash",
-                Arguments = ["./verify-compile.sh"],
-                TimeoutSeconds = 60,
-            },
-            new()
-            {
-                Name = "tests",
-                FileName = "bash",
-                Arguments = ["./verify-tests.sh"],
-                TimeoutSeconds = 60,
-            },
-        ];
+        (VerificationCommandDefinition[] commands, string compilePath, string compileScript, string testsPath, string testsScript) = CreateVerificationScripts(repositoryRoot.Path);
 
         await File.WriteAllTextAsync(
             Path.Combine(repositoryRoot.Path, "ringmaster.json"),
             TemporaryGitRepository.CreateDefaultRepoConfigJson(commands));
         await File.WriteAllTextAsync(Path.Combine(repositoryRoot.Path, "src.txt"), "INITIAL" + Environment.NewLine);
         await File.WriteAllTextAsync(Path.Combine(repositoryRoot.Path, "tests.txt"), "INITIAL" + Environment.NewLine);
-        await File.WriteAllTextAsync(
-            Path.Combine(repositoryRoot.Path, "verify-compile.sh"),
+        await File.WriteAllTextAsync(compilePath, compileScript);
+        await File.WriteAllTextAsync(testsPath, testsScript);
+
+        if (!OperatingSystem.IsWindows())
+        {
+            File.SetUnixFileMode(
+                compilePath,
+                UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute | UnixFileMode.GroupRead | UnixFileMode.GroupExecute | UnixFileMode.OtherRead | UnixFileMode.OtherExecute);
+            File.SetUnixFileMode(
+                testsPath,
+                UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute | UnixFileMode.GroupRead | UnixFileMode.GroupExecute | UnixFileMode.OtherRead | UnixFileMode.OtherExecute);
+        }
+
+        await repositoryRoot.CaptureGitAsync(["add", "."]);
+        await repositoryRoot.CaptureGitAsync(["commit", "-m", "Add scripted verification"]);
+    }
+
+    private static (VerificationCommandDefinition[] Commands, string CompilePath, string CompileScript, string TestsPath, string TestsScript) CreateVerificationScripts(string repositoryRoot)
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            string compilePath = Path.Combine(repositoryRoot, "verify-compile.cmd");
+            string testsPath = Path.Combine(repositoryRoot, "verify-tests.cmd");
+
+            return
+            (
+                [
+                    new()
+                    {
+                        Name = "compile",
+                        FileName = "cmd.exe",
+                        Arguments = ["/c", "verify-compile.cmd"],
+                        TimeoutSeconds = 60,
+                    },
+                    new()
+                    {
+                        Name = "tests",
+                        FileName = "cmd.exe",
+                        Arguments = ["/c", "verify-tests.cmd"],
+                        TimeoutSeconds = 60,
+                    },
+                ],
+                compilePath,
+                """
+                @echo off
+                findstr /C:"BROKEN_COMPILE" src.txt >nul
+                if %errorlevel%==0 (
+                  echo src/Program.cs(12,5): error CS0103: The name 'missingSymbol' does not exist in the current context
+                  exit /b 1
+                )
+                exit /b 0
+                """,
+                testsPath,
+                """
+                @echo off
+                findstr /C:"FAIL_TEST" tests.txt >nul
+                if %errorlevel%==0 (
+                  echo Failed Ringmaster.Tests.RetryTests.Should_retry_on_429 [1 ms]
+                  echo   Expected: 2
+                  echo   Actual:   1
+                  exit /b 1
+                )
+                exit /b 0
+                """);
+        }
+
+        string unixCompilePath = Path.Combine(repositoryRoot, "verify-compile.sh");
+        string unixTestsPath = Path.Combine(repositoryRoot, "verify-tests.sh");
+        return
+        (
+            [
+                new()
+                {
+                    Name = "compile",
+                    FileName = "sh",
+                    Arguments = ["./verify-compile.sh"],
+                    TimeoutSeconds = 60,
+                },
+                new()
+                {
+                    Name = "tests",
+                    FileName = "sh",
+                    Arguments = ["./verify-tests.sh"],
+                    TimeoutSeconds = 60,
+                },
+            ],
+            unixCompilePath,
             """
-            #!/usr/bin/env bash
-            set -euo pipefail
+            #!/usr/bin/env sh
+            set -eu
             if grep -q "BROKEN_COMPILE" src.txt; then
               echo "src/Program.cs(12,5): error CS0103: The name 'missingSymbol' does not exist in the current context"
               exit 1
             fi
             exit 0
-            """);
-        await File.WriteAllTextAsync(
-            Path.Combine(repositoryRoot.Path, "verify-tests.sh"),
+            """,
+            unixTestsPath,
             """
-            #!/usr/bin/env bash
-            set -euo pipefail
+            #!/usr/bin/env sh
+            set -eu
             if grep -q "FAIL_TEST" tests.txt; then
               echo "Failed Ringmaster.Tests.RetryTests.Should_retry_on_429 [1 ms]"
               echo "  Expected: 2"
@@ -550,19 +618,6 @@ public sealed class PhaseFiveIntegrationTests
             fi
             exit 0
             """);
-
-        if (!OperatingSystem.IsWindows())
-        {
-            File.SetUnixFileMode(
-                Path.Combine(repositoryRoot.Path, "verify-compile.sh"),
-                UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute | UnixFileMode.GroupRead | UnixFileMode.GroupExecute | UnixFileMode.OtherRead | UnixFileMode.OtherExecute);
-            File.SetUnixFileMode(
-                Path.Combine(repositoryRoot.Path, "verify-tests.sh"),
-                UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute | UnixFileMode.GroupRead | UnixFileMode.GroupExecute | UnixFileMode.OtherRead | UnixFileMode.OtherExecute);
-        }
-
-        await repositoryRoot.CaptureGitAsync(["add", "."]);
-        await repositoryRoot.CaptureGitAsync(["commit", "-m", "Add scripted verification"]);
     }
 
     private static Task<CodexExecResult> WriteImplementerResultAsync(

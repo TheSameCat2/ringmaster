@@ -92,6 +92,10 @@ public sealed class LocalFilesystemJobRepository(
 
         string definitionJson = await File.ReadAllTextAsync(RingmasterPaths.JobDefinitionPath(_repositoryRoot, jobId), cancellationToken);
         JobDefinition definition = RingmasterJsonSerializer.Deserialize<JobDefinition>(definitionJson);
+        definition = definition with
+        {
+            SchemaVersion = SchemaVersionSupport.NormalizeForRead("Job definition", definition.SchemaVersion),
+        };
         string jobMarkdown = await File.ReadAllTextAsync(RingmasterPaths.JobMarkdownPath(_repositoryRoot, jobId), cancellationToken);
         IReadOnlyList<JobEventRecord> events = await jobEventLogStore.ReadAllAsync(RingmasterPaths.EventLogPath(_repositoryRoot, jobId), cancellationToken);
         JobStatusSnapshot status = await LoadStatusAsync(jobId, cancellationToken);
@@ -196,7 +200,11 @@ public sealed class LocalFilesystemJobRepository(
         }
 
         string statusJson = await File.ReadAllTextAsync(statusPath, cancellationToken);
-        return RingmasterJsonSerializer.Deserialize<JobStatusSnapshot>(statusJson);
+        JobStatusSnapshot status = RingmasterJsonSerializer.Deserialize<JobStatusSnapshot>(statusJson);
+        return status with
+        {
+            SchemaVersion = SchemaVersionSupport.NormalizeForRead("Job status snapshot", status.SchemaVersion),
+        };
     }
 
     private static string BuildJobMarkdown(JobDefinition definition)

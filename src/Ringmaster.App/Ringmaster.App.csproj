@@ -3,6 +3,13 @@
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <AssemblyName>ringmaster</AssemblyName>
+    <PackageId>Ringmaster.Tool</PackageId>
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>ringmaster</ToolCommandName>
+    <Description>Durable Codex orchestration for git-backed engineering work.</Description>
+    <PackageTags>codex;git;automation;cli</PackageTags>
+    <PackageOutputPath>$(MSBuildThisFileDirectory)..\..\artifacts\packages</PackageOutputPath>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
 
   <ItemGroup>
@@ -17,6 +24,10 @@
     <ProjectReference Include="..\Ringmaster.Git\Ringmaster.Git.csproj" />
     <ProjectReference Include="..\Ringmaster.GitHub\Ringmaster.GitHub.csproj" />
     <ProjectReference Include="..\Ringmaster.Infrastructure\Ringmaster.Infrastructure.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\..\README.md" Pack="true" PackagePath="\" Link="README.md" />
   </ItemGroup>
 
 </Project>

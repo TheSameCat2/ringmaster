@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "baseBranch": "master",
+  "verificationProfiles": {
+    "default": {
+      "commands": [
+        {
+          "name": "build",
+          "fileName": "dotnet",
+          "arguments": [ "build", "SampleRepo.sln" ],
+          "timeoutSeconds": 900
+        },
+        {
+          "name": "test",
+          "fileName": "dotnet",
+          "arguments": [ "test", "SampleRepo.sln", "--no-build" ],
+          "timeoutSeconds": 1200
+        }
+      ]
+    },
+    "smoke": {
+      "commands": [
+        {
+          "name": "build",
+          "fileName": "dotnet",
+          "arguments": [ "build", "SampleRepo.sln", "--nologo" ],
+          "timeoutSeconds": 300
+        }
+      ]
+    }
+  }
+}

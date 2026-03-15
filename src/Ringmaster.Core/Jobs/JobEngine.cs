@@ -173,6 +173,7 @@ public sealed class JobEngine(
         {
             string runJson = await File.ReadAllTextAsync(runPath, cancellationToken);
             JobRunRecord existing = Core.Serialization.RingmasterJsonSerializer.Deserialize<JobRunRecord>(runJson);
+            SchemaVersionSupport.NormalizeForRead("Job run record", existing.SchemaVersion);
             tool = existing.Tool;
             command = existing.Command;
 
