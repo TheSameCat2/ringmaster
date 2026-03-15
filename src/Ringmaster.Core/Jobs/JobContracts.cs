@@ -98,8 +98,15 @@ public sealed record class StageExecutionResult
     public BlockerInfo? Blocker { get; init; }
     public FailureCategory? FailureCategory { get; init; }
     public RunArtifacts Artifacts { get; init; } = new();
+    public string? SessionId { get; init; }
+    public int? ExitCode { get; init; }
 
-    public static StageExecutionResult Succeeded(JobState nextState, string summary, RunArtifacts? artifacts = null)
+    public static StageExecutionResult Succeeded(
+        JobState nextState,
+        string summary,
+        RunArtifacts? artifacts = null,
+        string? sessionId = null,
+        int? exitCode = null)
     {
         return new StageExecutionResult
         {
@@ -107,10 +114,17 @@ public sealed record class StageExecutionResult
             NextState = nextState,
             Summary = summary,
             Artifacts = artifacts ?? new RunArtifacts(),
+            SessionId = sessionId,
+            ExitCode = exitCode,
         };
     }
 
-    public static StageExecutionResult Blocked(BlockerInfo blocker, string summary, RunArtifacts? artifacts = null)
+    public static StageExecutionResult Blocked(
+        BlockerInfo blocker,
+        string summary,
+        RunArtifacts? artifacts = null,
+        string? sessionId = null,
+        int? exitCode = null)
     {
         return new StageExecutionResult
         {
@@ -118,10 +132,17 @@ public sealed record class StageExecutionResult
             Summary = summary,
             Blocker = blocker,
             Artifacts = artifacts ?? new RunArtifacts(),
+            SessionId = sessionId,
+            ExitCode = exitCode,
         };
     }
 
-    public static StageExecutionResult Failed(FailureCategory failureCategory, string summary, RunArtifacts? artifacts = null)
+    public static StageExecutionResult Failed(
+        FailureCategory failureCategory,
+        string summary,
+        RunArtifacts? artifacts = null,
+        string? sessionId = null,
+        int? exitCode = null)
     {
         return new StageExecutionResult
         {
@@ -129,6 +150,8 @@ public sealed record class StageExecutionResult
             Summary = summary,
             FailureCategory = failureCategory,
             Artifacts = artifacts ?? new RunArtifacts(),
+            SessionId = sessionId,
+            ExitCode = exitCode,
         };
     }
 }

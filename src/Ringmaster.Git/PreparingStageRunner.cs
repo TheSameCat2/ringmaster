@@ -13,6 +13,13 @@ public sealed class PreparingStageRunner(
     IJobRepository jobRepository,
     TimeProvider timeProvider) : IStageRunner
 {
+    private readonly RepositoryPreparationService _preparationService = new(
+        repositoryRoot,
+        repoConfigLoader,
+        worktreeManager,
+        jobRepository,
+        timeProvider);
+
     public JobStage Stage => JobStage.PREPARING;
     public StageRole Role => StageRole.Planner;
 
@@ -27,78 +34,18 @@ public sealed class PreparingStageRunner(
 
     public async Task<StageExecutionResult> RunAsync(StageExecutionContext context, CancellationToken cancellationToken)
     {
-        RingmasterRepoConfig config;
+        RepositoryPreparationResult preparation = await _preparationService.PrepareAsync(context.Job, cancellationToken);
 
-        try
+        if (preparation.Blocker is not null)
         {
-            config = await repoConfigLoader.LoadAsync(repositoryRoot, cancellationToken);
-        }
-        catch (FileNotFoundException)
-        {
-            return BlockedForMissingConfig(ProductInfo.RepoConfigFileName);
-        }
-        catch (InvalidDataException exception)
-        {
-            return BlockedForMissingConfig(exception.Message);
+            return StageExecutionResult.Blocked(preparation.Blocker, preparation.Summary);
         }
 
-        string verificationProfile = context.Job.Definition.Repo.VerificationProfile;
-        if (!config.VerificationProfiles.TryGetValue(verificationProfile, out VerificationProfileDefinition? profile)
-            || profile.Commands.Count == 0)
+        if (preparation.FailureCategory is not null)
         {
-            return BlockedForMissingConfig($"Verification profile '{verificationProfile}' is not configured.");
+            return StageExecutionResult.Failed(preparation.FailureCategory.Value, preparation.Summary);
         }
 
-        string baseBranch = string.IsNullOrWhiteSpace(context.Job.Definition.Repo.BaseBranch)
-            ? config.BaseBranch
-            : context.Job.Definition.Repo.BaseBranch;
-
-        if (string.IsNullOrWhiteSpace(baseBranch))
-        {
-            return BlockedForMissingConfig("No base branch was configured for the repository.");
-        }
-
-        try
-        {
-            PreparedWorktree preparedWorktree = await worktreeManager.PrepareAsync(
-                repositoryRoot,
-                context.Job.Definition.JobId,
-                context.Job.Definition.Title,
-                baseBranch,
-                cancellationToken);
-            JobGitSnapshot gitSnapshot = await worktreeManager.CaptureSnapshotAsync(preparedWorktree, cancellationToken);
-
-            await jobRepository.AppendEventAsync(
-                context.Job.Definition.JobId,
-                JobEventRecord.CreateGitStateCaptured(context.Job.Definition.JobId, gitSnapshot, timeProvider.GetUtcNow()),
-                cancellationToken);
-
-            return StageExecutionResult.Succeeded(JobState.IMPLEMENTING, $"Prepared worktree at '{gitSnapshot.WorktreePath}'.");
-        }
-        catch (GitCliException exception)
-        {
-            return StageExecutionResult.Failed(
-                FailureCategory.ToolFailure,
-                BuildGitFailureSummary(exception));
-        }
-    }
-
-    private static StageExecutionResult BlockedForMissingConfig(string detail)
-    {
-        return StageExecutionResult.Blocked(
-            new BlockerInfo
-            {
-                ReasonCode = BlockerReasonCode.MissingConfiguration,
-                Summary = detail,
-                Questions = [$"Create or fix '{ProductInfo.RepoConfigFileName}' so PREPARING can resolve the repository base branch and verification profile."],
-                ResumeState = JobState.PREPARING,
-            },
-            detail);
-    }
-
-    private static string BuildGitFailureSummary(GitCliException exception)
-    {
-        ExternalProcessResult result = exception.ProcessResult;
-        return $"Git command failed with exit code {result.ExitCode}: {exception.Message} {result.Stderr}".Trim();
+        return StageExecutionResult.Succeeded(JobState.IMPLEMENTING, preparation.Summary);
     }
 }

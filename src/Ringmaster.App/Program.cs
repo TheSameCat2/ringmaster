@@ -2,6 +2,7 @@
 using Microsoft.Extensions.Hosting;
 using Ringmaster.App;
 using Ringmaster.App.CommandLine;
+using Ringmaster.Codex;
 using Ringmaster.Core.Jobs;
 using Ringmaster.Git;
 using Ringmaster.Infrastructure.Fakes;
@@ -21,6 +22,7 @@ builder.Services.AddSingleton<AtomicFileWriter>();
 builder.Services.AddSingleton<JobEventLogStore>();
 builder.Services.AddSingleton<RingmasterRepoConfigLoader>();
 builder.Services.AddSingleton<ExternalProcessRunner>();
+builder.Services.AddSingleton<IExternalProcessRunner>(serviceProvider => serviceProvider.GetRequiredService<ExternalProcessRunner>());
 builder.Services.AddSingleton<IJobIdGenerator, DefaultJobIdGenerator>();
 builder.Services.AddSingleton<IJobRepository>(serviceProvider =>
 {
@@ -35,18 +37,35 @@ builder.Services.AddSingleton<IJobRepository>(serviceProvider =>
 });
 builder.Services.AddSingleton<GitCli>();
 builder.Services.AddSingleton<GitWorktreeManager>();
-builder.Services.AddSingleton<IStateMachine, RingmasterStateMachine>();
-builder.Services.AddSingleton<IStageRunner>(serviceProvider =>
+builder.Services.AddSingleton<RepositoryPreparationService>(serviceProvider =>
 {
     RingmasterApplicationContext applicationContext = serviceProvider.GetRequiredService<RingmasterApplicationContext>();
-    return new PreparingStageRunner(
+    return new RepositoryPreparationService(
         applicationContext.RepositoryRoot,
         serviceProvider.GetRequiredService<RingmasterRepoConfigLoader>(),
         serviceProvider.GetRequiredService<GitWorktreeManager>(),
         serviceProvider.GetRequiredService<IJobRepository>(),
         serviceProvider.GetRequiredService<TimeProvider>());
 });
-builder.Services.AddSingleton<IStageRunner>(_ => new FakeStageRunner(JobStage.IMPLEMENTING, StageRole.Implementer, JobState.VERIFYING, "Implementer completed."));
+builder.Services.AddSingleton<ICodexRunner, CodexExecRunner>();
+builder.Services.AddSingleton<IAgentRunner, CodexAgentRunner>();
+builder.Services.AddSingleton<CodexPromptBuilder>();
+builder.Services.AddSingleton<IStateMachine, RingmasterStateMachine>();
+builder.Services.AddSingleton<IStageRunner>(serviceProvider =>
+{
+    return new PlanningStageRunner(
+        serviceProvider.GetRequiredService<RepositoryPreparationService>(),
+        serviceProvider.GetRequiredService<IAgentRunner>(),
+        serviceProvider.GetRequiredService<CodexPromptBuilder>(),
+        serviceProvider.GetRequiredService<AtomicFileWriter>());
+});
+builder.Services.AddSingleton<IStageRunner>(serviceProvider =>
+{
+    return new ImplementingStageRunner(
+        serviceProvider.GetRequiredService<IAgentRunner>(),
+        serviceProvider.GetRequiredService<CodexPromptBuilder>(),
+        serviceProvider.GetRequiredService<AtomicFileWriter>());
+});
 builder.Services.AddSingleton<IStageRunner>(serviceProvider =>
 {
     RingmasterApplicationContext applicationContext = serviceProvider.GetRequiredService<RingmasterApplicationContext>();

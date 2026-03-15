@@ -67,7 +67,8 @@ public sealed class JobEngine(
             JobRunRecord completedRun = run with
             {
                 CompletedAtUtc = timeProvider.GetUtcNow(),
-                ExitCode = result.Outcome == StageExecutionOutcome.Failed ? 1 : 0,
+                SessionId = result.SessionId,
+                ExitCode = result.ExitCode ?? (result.Outcome == StageExecutionOutcome.Failed ? 1 : 0),
                 Result = result.Outcome switch
                 {
                     StageExecutionOutcome.Succeeded => RunResult.Completed,

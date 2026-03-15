@@ -1,3 +1,5 @@
+using Ringmaster.Core.Jobs;
+
 namespace Ringmaster.Git;
 
 public sealed record class GitWorktreeInfo
@@ -51,4 +53,13 @@ public sealed record class VerificationSummary
     public bool Succeeded { get; init; }
     public IReadOnlyList<VerificationCommandRecord> Commands { get; init; } = [];
     public IReadOnlyList<string> ChangedFiles { get; init; } = [];
+}
+
+public sealed record class RepositoryPreparationResult
+{
+    public bool Succeeded { get; init; }
+    public string Summary { get; init; } = string.Empty;
+    public JobGitSnapshot? GitSnapshot { get; init; }
+    public BlockerInfo? Blocker { get; init; }
+    public FailureCategory? FailureCategory { get; init; }
 }

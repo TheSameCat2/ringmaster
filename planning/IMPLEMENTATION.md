@@ -294,22 +294,22 @@ Replace fake agent runners with a real Codex CLI adapter.
 
 ### Work packets
 
-* [ ] **P4.1** Define `ICodexRunner` and `IAgentRunner`.
-* [ ] **P4.2** Implement `codex exec` process invocation.
-* [ ] **P4.3** Add support for:
+* [x] **P4.1** Define `ICodexRunner` and `IAgentRunner`.
+* [x] **P4.2** Implement `codex exec` process invocation.
+* [x] **P4.3** Add support for:
 
   * `--json`
   * `--cd`
   * `--add-dir`
   * `--output-schema`
   * explicit sandbox and approval flags
-* [ ] **P4.4** Capture Codex JSONL events and final structured output per run.
-* [ ] **P4.5** Define prompt templates for planner and implementer.
-* [ ] **P4.6** Add C# DTOs for schema-constrained outputs.
-* [ ] **P4.7** Implement prompt-file generation into the run folder.
-* [ ] **P4.8** Add planner and implementer stage adapters using the real Codex runner.
-* [ ] **P4.9** Add fake-runner parity tests and opt-in real-Codex smoke tests.
-* [ ] **P4.10** Persist Codex session IDs when present.
+* [x] **P4.4** Capture Codex JSONL events and final structured output per run.
+* [x] **P4.5** Define prompt templates for planner and implementer.
+* [x] **P4.6** Add C# DTOs for schema-constrained outputs.
+* [x] **P4.7** Implement prompt-file generation into the run folder.
+* [x] **P4.8** Add planner and implementer stage adapters using the real Codex runner.
+* [x] **P4.9** Add fake-runner parity tests and opt-in real-Codex smoke tests.
+* [x] **P4.10** Persist Codex session IDs when present.
 
 ### Notes
 
@@ -952,11 +952,38 @@ Files: tests/Ringmaster.IntegrationTests/PhaseThreeIntegrationTests.cs; tests/Ri
 Follow-ups: The Phase 4 Codex adapter can now rely on temp-repo proof that git setup and deterministic verification already work.
 ```
 
+```text
+2026-03-15 17:56 UTC
+Packet: P4.1-P4.4
+Summary: Added the Codex runner abstractions, wired real codex exec process invocation with explicit sandbox and approval flags, streamed JSONL event logs to disk, and captured structured final outputs plus session IDs per run.
+Tests: git diff --check; dotnet build Ringmaster.sln; dotnet test Ringmaster.sln; RINGMASTER_RUN_REAL_CODEX_SMOKE=1 dotnet test tests/Ringmaster.IntegrationTests/Ringmaster.IntegrationTests.csproj --filter RealCodexSmokeWritesStructuredOutputWhenEnabled
+Files: src/Ringmaster.Codex/CodexContracts.cs; src/Ringmaster.Codex/CodexExecRunner.cs; src/Ringmaster.Codex/CodexAgentRunner.cs; src/Ringmaster.Infrastructure/Processes/ExternalProcessTypes.cs; src/Ringmaster.Infrastructure/Processes/ExternalProcessRunner.cs; tests/Ringmaster.IntegrationTests/CodexExecRunnerTests.cs; tests/Ringmaster.IntegrationTests/Testing/FakeCodexRunner.cs; tests/Ringmaster.IntegrationTests/Testing/FakeExternalProcessRunner.cs
+Follow-ups: Keep later repair and reviewer stages on the same runner contract so fake and live Codex paths stay interchangeable.
+```
+
+```text
+2026-03-15 17:56 UTC
+Packet: P4.5-P4.8
+Summary: Added schema-constrained planner and implementer prompts, persisted prompt and schema files into each run folder, refactored deterministic repo preparation into a reusable service, and replaced the fake PREPARING and IMPLEMENTING stages with real Codex-backed adapters.
+Tests: git diff --check; dotnet build Ringmaster.sln; dotnet test Ringmaster.sln
+Files: src/Ringmaster.Codex/CodexPromptBuilder.cs; src/Ringmaster.Codex/PlanningStageRunner.cs; src/Ringmaster.Codex/ImplementingStageRunner.cs; src/Ringmaster.Git/RepositoryPreparationService.cs; src/Ringmaster.Git/PreparingStageRunner.cs; src/Ringmaster.App/Program.cs; tests/Ringmaster.IntegrationTests/PhaseFourIntegrationTests.cs
+Follow-ups: Phase 5 should reuse the same prompt builder and durable run artifacts for repair and reviewer packets instead of inventing parallel formats.
+```
+
+```text
+2026-03-15 17:56 UTC
+Packet: P4.9-P4.10
+Summary: Added parity coverage proving the real stage runners write PLAN.md, NOTES.md, run artifacts, and persisted Codex session IDs, plus an opt-in live smoke test that exercises the installed Codex CLI end to end.
+Tests: git diff --check; dotnet build Ringmaster.sln; dotnet test Ringmaster.sln; RINGMASTER_RUN_REAL_CODEX_SMOKE=1 dotnet test tests/Ringmaster.IntegrationTests/Ringmaster.IntegrationTests.csproj --filter RealCodexSmokeWritesStructuredOutputWhenEnabled
+Files: src/Ringmaster.Core/Jobs/JobContracts.cs; src/Ringmaster.Core/Jobs/JobEngine.cs; tests/Ringmaster.IntegrationTests/PhaseFourIntegrationTests.cs; tests/Ringmaster.IntegrationTests/Ringmaster.IntegrationTests.csproj
+Follow-ups: Phase 5 can now classify real verifier outcomes and send repair/review prompts while keeping run.json authoritative for exit codes and Codex session tracking.
+```
+
 ---
 
 ## Immediate next step
 
-Start **Phase 4, Packet P4.1** and define the Codex runner and agent-runner interfaces that will replace the fake planner and implementer stages without changing the engine contract.
+Start **Phase 5, Packet P5.1** and implement deterministic failure classification on top of the real verifier artifacts so repair decisions are driven by durable evidence instead of ad hoc stage summaries.
 
 [1]: https://developers.openai.com/codex/cli/?utm_source=chatgpt.com "Codex CLI"
 [2]: https://developers.openai.com/codex/learn/best-practices/?utm_source=chatgpt.com "Best practices"

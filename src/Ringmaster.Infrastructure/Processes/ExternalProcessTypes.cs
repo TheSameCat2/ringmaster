@@ -1,5 +1,10 @@
 namespace Ringmaster.Infrastructure.Processes;
 
+public interface IExternalProcessRunner
+{
+    Task<ExternalProcessResult> RunAsync(ExternalProcessSpec spec, CancellationToken cancellationToken);
+}
+
 public sealed record class ExternalProcessSpec
 {
     public required string FileName { get; init; }
@@ -8,6 +13,7 @@ public sealed record class ExternalProcessSpec
     public TimeSpan Timeout { get; init; } = TimeSpan.FromMinutes(30);
     public IReadOnlyDictionary<string, string> EnvironmentVariables { get; init; }
         = new Dictionary<string, string>(StringComparer.Ordinal);
+    public string? StandardInputText { get; init; }
     public string? StdoutPath { get; init; }
     public string? StderrPath { get; init; }
 }

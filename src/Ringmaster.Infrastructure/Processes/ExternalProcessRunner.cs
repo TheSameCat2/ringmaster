@@ -3,7 +3,7 @@ using System.Text;
 
 namespace Ringmaster.Infrastructure.Processes;
 
-public sealed class ExternalProcessRunner(TimeProvider timeProvider)
+public sealed class ExternalProcessRunner(TimeProvider timeProvider) : IExternalProcessRunner
 {
     public async Task<ExternalProcessResult> RunAsync(ExternalProcessSpec spec, CancellationToken cancellationToken)
     {
@@ -14,6 +14,7 @@ public sealed class ExternalProcessRunner(TimeProvider timeProvider)
         {
             FileName = spec.FileName,
             WorkingDirectory = spec.WorkingDirectory,
+            RedirectStandardInput = spec.StandardInputText is not null,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             UseShellExecute = false,
@@ -38,6 +39,13 @@ public sealed class ExternalProcessRunner(TimeProvider timeProvider)
         if (!process.Start())
         {
             throw new InvalidOperationException($"Failed to start process '{spec.FileName}'.");
+        }
+
+        if (spec.StandardInputText is not null)
+        {
+            await process.StandardInput.WriteAsync(spec.StandardInputText.AsMemory(), cancellationToken);
+            await process.StandardInput.FlushAsync();
+            process.StandardInput.Close();
         }
 
         Task<string> stdoutTask = PumpAsync(process.StandardOutput, spec.StdoutPath, cancellationToken);

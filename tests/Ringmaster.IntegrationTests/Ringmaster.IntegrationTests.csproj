@@ -18,7 +18,9 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Ringmaster.App\Ringmaster.App.csproj" />
+    <ProjectReference Include="..\..\src\Ringmaster.Codex\Ringmaster.Codex.csproj" />
     <ProjectReference Include="..\..\src\Ringmaster.Core\Ringmaster.Core.csproj" />
+    <ProjectReference Include="..\..\src\Ringmaster.Git\Ringmaster.Git.csproj" />
     <ProjectReference Include="..\..\src\Ringmaster.Infrastructure\Ringmaster.Infrastructure.csproj" />
   </ItemGroup>
 
