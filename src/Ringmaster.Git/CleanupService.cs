@@ -10,6 +10,7 @@ public sealed class CleanupService(
     TimeProvider timeProvider)
 {
     private readonly string _repositoryRoot = Path.GetFullPath(repositoryRoot);
+    private readonly string _managedWorktreeRoot = ComputeManagedWorktreeRoot(repositoryRoot);
 
     public async Task<CleanupResult> RunAsync(CleanupOptions options, CancellationToken cancellationToken)
     {
@@ -112,7 +113,17 @@ public sealed class CleanupService(
                 "No worktree path was recorded for this job.");
         }
 
-        if (!Directory.Exists(worktreePath))
+        string fullWorktreePath = Path.GetFullPath(worktreePath);
+        if (!IsManagedWorktreePath(fullWorktreePath))
+        {
+            return CreateResult(
+                storedJob,
+                CleanupDisposition.SkippedInvalidWorktreePath,
+                artifactFilesRemoved,
+                $"Recorded worktree path '{worktreePath}' is outside the managed worktree root.");
+        }
+
+        if (!Directory.Exists(fullWorktreePath))
         {
             return CreateResult(
                 storedJob,
@@ -125,7 +136,7 @@ public sealed class CleanupService(
         {
             await gitCli.RemoveWorktreeAsync(
                 _repositoryRoot,
-                worktreePath,
+                fullWorktreePath,
                 force: true,
                 forceIfLocked: true,
                 cancellationToken);
@@ -133,7 +144,7 @@ public sealed class CleanupService(
                 storedJob,
                 CleanupDisposition.Removed,
                 artifactFilesRemoved,
-                $"Removed retained worktree '{worktreePath}'.");
+                $"Removed retained worktree '{fullWorktreePath}'.");
         }
         catch (Exception exception) when (exception is GitCliException or IOException)
         {
@@ -161,6 +172,33 @@ public sealed class CleanupService(
             JobState.FAILED => true,
             _ => false,
         };
+    }
+
+    private bool IsManagedWorktreePath(string fullWorktreePath)
+    {
+        return IsWithinDirectory(fullWorktreePath, _managedWorktreeRoot);
+    }
+
+    private static bool IsWithinDirectory(string candidatePath, string expectedParentDirectory)
+    {
+        string parentWithSeparator = EnsureTrailingSeparator(Path.GetFullPath(expectedParentDirectory));
+        string candidateWithSeparator = EnsureTrailingSeparator(Path.GetFullPath(candidatePath));
+        return candidateWithSeparator.StartsWith(parentWithSeparator, StringComparison.Ordinal);
+    }
+
+    private static string ComputeManagedWorktreeRoot(string repositoryRoot)
+    {
+        string repoRoot = Path.GetFullPath(repositoryRoot);
+        string repoName = new DirectoryInfo(repoRoot).Name;
+        string repoParent = Directory.GetParent(repoRoot)?.FullName
+            ?? throw new InvalidOperationException($"Repository root '{repoRoot}' does not have a parent directory.");
+
+        return Path.GetFullPath(Path.Combine(repoParent, ".ringmaster-worktrees", repoName));
+    }
+
+    private static string EnsureTrailingSeparator(string path)
+    {
+        return Path.EndsInDirectorySeparator(path) ? path : path + Path.DirectorySeparatorChar;
     }
 
     private static int PruneRunLogs(string jobDirectoryPath, DateTimeOffset artifactCutoff)
@@ -238,6 +276,7 @@ public enum CleanupDisposition
     SkippedRetention,
     SkippedUnsafeState,
     SkippedNoWorktree,
+    SkippedInvalidWorktreePath,
     AlreadyMissing,
     Removed,
     Error,
