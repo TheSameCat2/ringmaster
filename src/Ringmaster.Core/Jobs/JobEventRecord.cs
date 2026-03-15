@@ -22,6 +22,14 @@ public sealed record class JobEventRecord
     public DateTimeOffset? CreatedAtUtc { get; init; }
     public DateTimeOffset? UpdatedAtUtc { get; init; }
     public DateTimeOffset? NextEligibleAtUtc { get; init; }
+    public string? RepoRoot { get; init; }
+    public string? BaseBranch { get; init; }
+    public string? BaseCommit { get; init; }
+    public string? JobBranch { get; init; }
+    public string? WorktreePath { get; init; }
+    public string? HeadCommit { get; init; }
+    public bool? HasUncommittedChanges { get; init; }
+    public IReadOnlyList<string> ChangedFiles { get; init; } = [];
     public string? RunId { get; init; }
     public JobStage? Stage { get; init; }
     public StageRole? Role { get; init; }
@@ -68,6 +76,26 @@ public sealed record class JobEventRecord
             ResumeState = to,
             UpdatedAtUtc = timestampUtc,
             NextEligibleAtUtc = timestampUtc,
+        };
+    }
+
+    public static JobEventRecord CreateGitStateCaptured(string jobId, JobGitSnapshot gitSnapshot, DateTimeOffset timestampUtc)
+    {
+        return new JobEventRecord
+        {
+            Sequence = 0,
+            TimestampUtc = timestampUtc,
+            Type = JobEventType.GitStateCaptured,
+            JobId = jobId,
+            RepoRoot = gitSnapshot.RepoRoot,
+            BaseBranch = gitSnapshot.BaseBranch,
+            BaseCommit = gitSnapshot.BaseCommit,
+            JobBranch = gitSnapshot.JobBranch,
+            WorktreePath = gitSnapshot.WorktreePath,
+            HeadCommit = gitSnapshot.HeadCommit,
+            HasUncommittedChanges = gitSnapshot.HasUncommittedChanges,
+            ChangedFiles = gitSnapshot.ChangedFiles,
+            UpdatedAtUtc = timestampUtc,
         };
     }
 

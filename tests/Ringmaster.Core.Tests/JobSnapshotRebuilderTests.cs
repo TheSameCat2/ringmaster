@@ -127,4 +127,49 @@ public sealed class JobSnapshotRebuilderTests
         Assert.Equal(JobState.IMPLEMENTING, completed.State);
         Assert.Equal(1, completed.Attempts.Preparing);
     }
+
+    [Fact]
+    public void RebuildCapturesGitSnapshotFromGitStateCapturedEvents()
+    {
+        DateTimeOffset createdAt = new(2026, 3, 15, 16, 45, 0, TimeSpan.Zero);
+        JobDefinition definition = new()
+        {
+            JobId = "job-20260315-7f3c9b2a",
+            Title = "Add retry handling",
+            Description = "Implement bounded retries for retryable failures.",
+            Repo = new JobRepositoryTarget
+            {
+                BaseBranch = "master",
+                VerificationProfile = "default",
+            },
+            CreatedAtUtc = createdAt,
+            CreatedBy = "tester",
+        };
+        JobStatusSnapshot initialStatus = JobStatusSnapshot.CreateInitial(definition);
+        JobSnapshotRebuilder rebuilder = new();
+
+        JobStatusSnapshot rebuilt = rebuilder.Rebuild(
+        [
+            JobEventRecord.CreateJobCreated(1, definition, initialStatus),
+            JobEventRecord.CreateGitStateCaptured(
+                definition.JobId,
+                new JobGitSnapshot
+                {
+                    RepoRoot = "/tmp/sample",
+                    BaseBranch = "master",
+                    BaseCommit = "abc123",
+                    JobBranch = "ringmaster/j-7f3c9b2a-retry",
+                    WorktreePath = "/tmp/.ringmaster-worktrees/sample/j-7f3c9b2a",
+                    HeadCommit = "abc123",
+                    HasUncommittedChanges = true,
+                    ChangedFiles = ["README.md"],
+                },
+                createdAt.AddMinutes(1)) with { Sequence = 2 },
+        ]);
+
+        Assert.NotNull(rebuilt.Git);
+        Assert.Equal("ringmaster/j-7f3c9b2a-retry", rebuilt.Git.JobBranch);
+        Assert.True(rebuilt.Git.HasUncommittedChanges);
+        Assert.Equal(["README.md"], rebuilt.Git.ChangedFiles);
+    }
 }

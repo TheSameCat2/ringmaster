@@ -64,10 +64,17 @@ public interface IStageRunner
 {
     JobStage Stage { get; }
     StageRole Role { get; }
+    StageRunDescriptor DescribeRun(StoredJob job);
     Task<StageExecutionResult> RunAsync(StageExecutionContext context, CancellationToken cancellationToken);
 }
 
 public sealed record class StageDescriptor(JobStage Stage, StageRole Role);
+
+public sealed record class StageRunDescriptor
+{
+    public required string Tool { get; init; }
+    public IReadOnlyList<string> Command { get; init; } = [];
+}
 
 public sealed record class StageExecutionContext
 {
@@ -90,34 +97,38 @@ public sealed record class StageExecutionResult
     public string Summary { get; init; } = string.Empty;
     public BlockerInfo? Blocker { get; init; }
     public FailureCategory? FailureCategory { get; init; }
+    public RunArtifacts Artifacts { get; init; } = new();
 
-    public static StageExecutionResult Succeeded(JobState nextState, string summary)
+    public static StageExecutionResult Succeeded(JobState nextState, string summary, RunArtifacts? artifacts = null)
     {
         return new StageExecutionResult
         {
             Outcome = StageExecutionOutcome.Succeeded,
             NextState = nextState,
             Summary = summary,
+            Artifacts = artifacts ?? new RunArtifacts(),
         };
     }
 
-    public static StageExecutionResult Blocked(BlockerInfo blocker, string summary)
+    public static StageExecutionResult Blocked(BlockerInfo blocker, string summary, RunArtifacts? artifacts = null)
     {
         return new StageExecutionResult
         {
             Outcome = StageExecutionOutcome.Blocked,
             Summary = summary,
             Blocker = blocker,
+            Artifacts = artifacts ?? new RunArtifacts(),
         };
     }
 
-    public static StageExecutionResult Failed(FailureCategory failureCategory, string summary)
+    public static StageExecutionResult Failed(FailureCategory failureCategory, string summary, RunArtifacts? artifacts = null)
     {
         return new StageExecutionResult
         {
             Outcome = StageExecutionOutcome.Failed,
             Summary = summary,
             FailureCategory = failureCategory,
+            Artifacts = artifacts ?? new RunArtifacts(),
         };
     }
 }

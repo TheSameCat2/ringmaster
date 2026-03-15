@@ -3,8 +3,11 @@ using Microsoft.Extensions.Hosting;
 using Ringmaster.App;
 using Ringmaster.App.CommandLine;
 using Ringmaster.Core.Jobs;
+using Ringmaster.Git;
 using Ringmaster.Infrastructure.Fakes;
+using Ringmaster.Infrastructure.Configuration;
 using Ringmaster.Infrastructure.Persistence;
+using Ringmaster.Infrastructure.Processes;
 using Spectre.Console;
 
 HostApplicationBuilder builder = Host.CreateApplicationBuilder(args);
@@ -16,6 +19,8 @@ builder.Services.AddSingleton(new RingmasterApplicationContext(repositoryRoot, E
 builder.Services.AddSingleton<JobSnapshotRebuilder>();
 builder.Services.AddSingleton<AtomicFileWriter>();
 builder.Services.AddSingleton<JobEventLogStore>();
+builder.Services.AddSingleton<RingmasterRepoConfigLoader>();
+builder.Services.AddSingleton<ExternalProcessRunner>();
 builder.Services.AddSingleton<IJobIdGenerator, DefaultJobIdGenerator>();
 builder.Services.AddSingleton<IJobRepository>(serviceProvider =>
 {
@@ -28,10 +33,33 @@ builder.Services.AddSingleton<IJobRepository>(serviceProvider =>
         serviceProvider.GetRequiredService<JobEventLogStore>(),
         serviceProvider.GetRequiredService<JobSnapshotRebuilder>());
 });
+builder.Services.AddSingleton<GitCli>();
+builder.Services.AddSingleton<GitWorktreeManager>();
 builder.Services.AddSingleton<IStateMachine, RingmasterStateMachine>();
-builder.Services.AddSingleton<IStageRunner>(_ => new FakeStageRunner(JobStage.PREPARING, StageRole.Planner, JobState.IMPLEMENTING, "Planner completed."));
+builder.Services.AddSingleton<IStageRunner>(serviceProvider =>
+{
+    RingmasterApplicationContext applicationContext = serviceProvider.GetRequiredService<RingmasterApplicationContext>();
+    return new PreparingStageRunner(
+        applicationContext.RepositoryRoot,
+        serviceProvider.GetRequiredService<RingmasterRepoConfigLoader>(),
+        serviceProvider.GetRequiredService<GitWorktreeManager>(),
+        serviceProvider.GetRequiredService<IJobRepository>(),
+        serviceProvider.GetRequiredService<TimeProvider>());
+});
 builder.Services.AddSingleton<IStageRunner>(_ => new FakeStageRunner(JobStage.IMPLEMENTING, StageRole.Implementer, JobState.VERIFYING, "Implementer completed."));
-builder.Services.AddSingleton<IStageRunner>(_ => new FakeStageRunner(JobStage.VERIFYING, StageRole.SystemVerifier, JobState.REVIEWING, "Verifier completed."));
+builder.Services.AddSingleton<IStageRunner>(serviceProvider =>
+{
+    RingmasterApplicationContext applicationContext = serviceProvider.GetRequiredService<RingmasterApplicationContext>();
+    return new VerifyingStageRunner(
+        applicationContext.RepositoryRoot,
+        serviceProvider.GetRequiredService<RingmasterRepoConfigLoader>(),
+        serviceProvider.GetRequiredService<ExternalProcessRunner>(),
+        serviceProvider.GetRequiredService<GitCli>(),
+        serviceProvider.GetRequiredService<GitWorktreeManager>(),
+        serviceProvider.GetRequiredService<AtomicFileWriter>(),
+        serviceProvider.GetRequiredService<IJobRepository>(),
+        serviceProvider.GetRequiredService<TimeProvider>());
+});
 builder.Services.AddSingleton<IStageRunner>(_ => new FakeStageRunner(JobStage.REPAIRING, StageRole.Implementer, JobState.VERIFYING, "Repair completed."));
 builder.Services.AddSingleton<IStageRunner>(_ => new FakeStageRunner(JobStage.REVIEWING, StageRole.Reviewer, JobState.READY_FOR_PR, "Reviewer approved."));
 builder.Services.AddSingleton<JobEngine>();

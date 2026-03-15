@@ -86,6 +86,7 @@ public enum JobEventType
 {
     JobCreated,
     StateChanged,
+    GitStateCaptured,
     RunStarted,
     RunHeartbeat,
     RunCompleted,

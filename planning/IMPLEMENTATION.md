@@ -255,20 +255,20 @@ Add deterministic git-backed execution and verifier command execution.
 
 ### Work packets
 
-* [ ] **P3.1** Implement a generic external process runner with streaming logs and timeouts.
-* [ ] **P3.2** Implement git CLI adapter and result parsing.
-* [ ] **P3.3** Define repo config file shape for base branch and verification profiles.
-* [ ] **P3.4** Implement worktree creation, reuse, discovery, and cleanup helpers.
-* [ ] **P3.5** Implement branch naming and worktree path conventions.
-* [ ] **P3.6** Implement diff artifact generation:
+* [x] **P3.1** Implement a generic external process runner with streaming logs and timeouts.
+* [x] **P3.2** Implement git CLI adapter and result parsing.
+* [x] **P3.3** Define repo config file shape for base branch and verification profiles.
+* [x] **P3.4** Implement worktree creation, reuse, discovery, and cleanup helpers.
+* [x] **P3.5** Implement branch naming and worktree path conventions.
+* [x] **P3.6** Implement diff artifact generation:
 
   * changed files
   * diffstat
   * patch
-* [ ] **P3.7** Implement deterministic verifier command execution from repo config.
-* [ ] **P3.8** Update `PREPARING` to create or recover the worktree.
-* [ ] **P3.9** Update `VERIFYING` to run configured commands.
-* [ ] **P3.10** Add temp-repo integration tests for worktrees, branches, verifier execution, and diff artifacts.
+* [x] **P3.7** Implement deterministic verifier command execution from repo config.
+* [x] **P3.8** Update `PREPARING` to create or recover the worktree.
+* [x] **P3.9** Update `VERIFYING` to run configured commands.
+* [x] **P3.10** Add temp-repo integration tests for worktrees, branches, verifier execution, and diff artifacts.
 
 ### Notes
 
@@ -862,11 +862,101 @@ Files: tests/Ringmaster.IntegrationTests/JobEngineIntegrationTests.cs; tests/Rin
 Follow-ups: Carry the same proof discipline into temp-repo git and verifier integration in Phase 3.
 ```
 
+```text
+2026-03-15 17:18 UTC
+Packet: P3.1
+Summary: Added a shell-free external process runner with argument-list invocation, timeout handling, live stdout/stderr file streaming, and structured execution results for deterministic command stages.
+Tests: dotnet build Ringmaster.sln; dotnet test Ringmaster.sln
+Files: src/Ringmaster.Infrastructure/Processes/ExternalProcessTypes.cs; src/Ringmaster.Infrastructure/Processes/ExternalProcessRunner.cs; tests/Ringmaster.IntegrationTests/PhaseThreeIntegrationTests.cs
+Follow-ups: Reuse the same process runner for Codex, git, and verifier commands so timeout and logging behavior stay uniform.
+```
+
+```text
+2026-03-15 17:18 UTC
+Packet: P3.2
+Summary: Implemented the git CLI adapter with commit resolution, branch existence checks, porcelain worktree discovery, repair, worktree creation, status capture, and diff output helpers.
+Tests: dotnet test Ringmaster.sln
+Files: src/Ringmaster.Git/GitCli.cs; src/Ringmaster.Git/GitModels.cs; tests/Ringmaster.IntegrationTests/PhaseThreeIntegrationTests.cs
+Follow-ups: Later phases can extend the adapter with push, fetch, and PR-supporting operations without changing the stage contract.
+```
+
+```text
+2026-03-15 17:18 UTC
+Packet: P3.3
+Summary: Defined the committed repo config model for base-branch and verification-profile selection, added the filesystem loader, and committed a working ringmaster.json for this repository.
+Tests: dotnet test Ringmaster.sln
+Files: src/Ringmaster.Core/Configuration/RingmasterRepoConfig.cs; src/Ringmaster.Infrastructure/Configuration/RingmasterRepoConfigLoader.cs; ringmaster.json
+Follow-ups: Future config additions should stay schema-versioned and deterministic so PREPARING and VERIFYING remain reproducible.
+```
+
+```text
+2026-03-15 17:18 UTC
+Packet: P3.4
+Summary: Added worktree management helpers that create, discover, repair, and reuse linked worktrees outside the repo root while preserving one job to one branch/worktree ownership.
+Tests: dotnet test Ringmaster.sln
+Files: src/Ringmaster.Git/GitWorktreeManager.cs; src/Ringmaster.Git/GitCli.cs; tests/Ringmaster.IntegrationTests/PhaseThreeIntegrationTests.cs
+Follow-ups: Cleanup and retention policies can build on the same worktree manager in later phases.
+```
+
+```text
+2026-03-15 17:18 UTC
+Packet: P3.5
+Summary: Implemented deterministic branch and worktree naming conventions using short job IDs and slugified titles so git state is reproducible and paths stay compact.
+Tests: dotnet test Ringmaster.sln
+Files: src/Ringmaster.Git/GitWorktreeManager.cs; tests/Ringmaster.IntegrationTests/PhaseThreeIntegrationTests.cs
+Follow-ups: Keep future naming changes backward-compatible with persisted STATUS.json git snapshots.
+```
+
+```text
+2026-03-15 17:18 UTC
+Packet: P3.6
+Summary: Added diff artifact generation for changed-files.json, diff.patch, diffstat.txt, and verification-summary.json under each job so later review stages can consume durable artifacts instead of recomputing git state.
+Tests: dotnet test Ringmaster.sln
+Files: src/Ringmaster.Git/VerifyingStageRunner.cs; src/Ringmaster.Core/Jobs/JobEventRecord.cs; src/Ringmaster.Core/Jobs/JobSnapshotRebuilder.cs
+Follow-ups: Review and PR stages can now read durable diff artifacts from the job folder.
+```
+
+```text
+2026-03-15 17:18 UTC
+Packet: P3.7
+Summary: Replaced fake verification with deterministic command execution from the selected repo profile, including per-command logs, command JSONL records, and structured verification summaries.
+Tests: dotnet test Ringmaster.sln; /home/thesamecat/dev/csharp/ringmaster/src/Ringmaster.App/bin/Debug/net10.0/ringmaster job run job-20260315-4423cc06b --json
+Files: src/Ringmaster.Git/VerifyingStageRunner.cs; src/Ringmaster.Infrastructure/Processes/ExternalProcessRunner.cs; tests/Ringmaster.IntegrationTests/PhaseThreeIntegrationTests.cs
+Follow-ups: Phase 5 can classify verifier failures from the persisted command records and summaries instead of parsing ad hoc output later.
+```
+
+```text
+2026-03-15 17:18 UTC
+Packet: P3.8
+Summary: Updated PREPARING to resolve repo config, validate the verification profile, create or recover the linked worktree, and persist the prepared git snapshot before implementation starts.
+Tests: dotnet test Ringmaster.sln
+Files: src/Ringmaster.Git/PreparingStageRunner.cs; src/Ringmaster.App/Program.cs; tests/Ringmaster.IntegrationTests/PhaseThreeIntegrationTests.cs
+Follow-ups: Planner integration can now inherit a real prepared worktree without changing the deterministic setup path.
+```
+
+```text
+2026-03-15 17:18 UTC
+Packet: P3.9
+Summary: Updated VERIFYING to execute the committed verification profile inside the worktree, refresh the git snapshot, and transition to REVIEWING only after deterministic command success.
+Tests: dotnet test Ringmaster.sln; /home/thesamecat/dev/csharp/ringmaster/src/Ringmaster.App/bin/Debug/net10.0/ringmaster status --job-id job-20260315-4423cc06b --json
+Files: src/Ringmaster.Git/VerifyingStageRunner.cs; src/Ringmaster.App/Program.cs; tests/Ringmaster.IntegrationTests/PhaseThreeIntegrationTests.cs
+Follow-ups: Failure classification and repair-loop transitions can now attach to real verifier outcomes in Phase 5.
+```
+
+```text
+2026-03-15 17:18 UTC
+Packet: P3.10
+Summary: Added temp-repo integration coverage for worktree creation and reuse, verification execution, diff artifact persistence, missing-config blocking, and structured git failure handling.
+Tests: dotnet test Ringmaster.sln; /home/thesamecat/dev/csharp/ringmaster/src/Ringmaster.App/bin/Debug/net10.0/ringmaster job create --title "Add retry handling" --description "Implement bounded retries." --json; /home/thesamecat/dev/csharp/ringmaster/src/Ringmaster.App/bin/Debug/net10.0/ringmaster job run job-20260315-4423cc06b --json; /home/thesamecat/dev/csharp/ringmaster/src/Ringmaster.App/bin/Debug/net10.0/ringmaster status --job-id job-20260315-4423cc06b --json
+Files: tests/Ringmaster.IntegrationTests/PhaseThreeIntegrationTests.cs; tests/Ringmaster.IntegrationTests/Testing/TemporaryGitRepository.cs; src/Ringmaster.Git/
+Follow-ups: The Phase 4 Codex adapter can now rely on temp-repo proof that git setup and deterministic verification already work.
+```
+
 ---
 
 ## Immediate next step
 
-Start **Phase 3, Packet P3.1** and add the generic external process runner with structured execution results, streaming log capture, and timeout handling for future git and verifier stages.
+Start **Phase 4, Packet P4.1** and define the Codex runner and agent-runner interfaces that will replace the fake planner and implementer stages without changing the engine contract.
 
 [1]: https://developers.openai.com/codex/cli/?utm_source=chatgpt.com "Codex CLI"
 [2]: https://developers.openai.com/codex/learn/best-practices/?utm_source=chatgpt.com "Best practices"

@@ -20,6 +20,7 @@ public sealed class JobSnapshotRebuilder
         {
             JobEventType.JobCreated => ApplyJobCreated(jobEvent),
             JobEventType.StateChanged => ApplyStateChanged(current, jobEvent),
+            JobEventType.GitStateCaptured => ApplyGitStateCaptured(current, jobEvent),
             JobEventType.RunStarted => ApplyRunStarted(current, jobEvent),
             JobEventType.RunHeartbeat => ApplyRunHeartbeat(current, jobEvent),
             JobEventType.RunCompleted => ApplyRunCompleted(current, jobEvent),
@@ -100,6 +101,27 @@ public sealed class JobSnapshotRebuilder
                 SessionId = jobEvent.SessionId,
             },
             Attempts = attempts,
+            UpdatedAtUtc = jobEvent.UpdatedAtUtc ?? jobEvent.TimestampUtc,
+        };
+    }
+
+    private static JobStatusSnapshot ApplyGitStateCaptured(JobStatusSnapshot? current, JobEventRecord jobEvent)
+    {
+        JobStatusSnapshot snapshot = current ?? throw new InvalidOperationException("GitStateCaptured cannot be applied before JobCreated.");
+
+        return snapshot with
+        {
+            Git = new JobGitSnapshot
+            {
+                RepoRoot = jobEvent.RepoRoot,
+                BaseBranch = jobEvent.BaseBranch,
+                BaseCommit = jobEvent.BaseCommit,
+                JobBranch = jobEvent.JobBranch,
+                WorktreePath = jobEvent.WorktreePath,
+                HeadCommit = jobEvent.HeadCommit,
+                HasUncommittedChanges = jobEvent.HasUncommittedChanges ?? false,
+                ChangedFiles = jobEvent.ChangedFiles,
+            },
             UpdatedAtUtc = jobEvent.UpdatedAtUtc ?? jobEvent.TimestampUtc,
         };
     }

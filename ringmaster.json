@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 1,
+  "baseBranch": "master",
+  "verificationProfiles": {
+    "smoke": {
+      "commands": [
+        {
+          "name": "build",
+          "fileName": "dotnet",
+          "arguments": [
+            "build",
+            "Ringmaster.sln"
+          ],
+          "timeoutSeconds": 900
+        }
+      ]
+    },
+    "default": {
+      "commands": [
+        {
+          "name": "build",
+          "fileName": "dotnet",
+          "arguments": [
+            "build",
+            "Ringmaster.sln"
+          ],
+          "timeoutSeconds": 900
+        },
+        {
+          "name": "test",
+          "fileName": "dotnet",
+          "arguments": [
+            "test",
+            "Ringmaster.sln"
+          ],
+          "timeoutSeconds": 1800
+        }
+      ]
+    }
+  }
+}

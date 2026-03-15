@@ -32,6 +32,7 @@ public sealed class JobEngine(
 
             storedJob = await jobRepository.GetAsync(jobId, cancellationToken)
                 ?? throw new InvalidOperationException($"Job '{jobId}' was not found.");
+            StageRunDescriptor runDescriptor = runner.DescribeRun(storedJob);
 
             int attempt = GetAttemptCount(storedJob.Status.Attempts, descriptor.Stage) + 1;
             int runNumber = await jobRepository.GetNextRunNumberAsync(jobId, cancellationToken);
@@ -47,8 +48,8 @@ public sealed class JobEngine(
                 Role = descriptor.Role,
                 Attempt = attempt,
                 StartedAtUtc = startedAt,
-                Tool = "fake",
-                Command = ["fake-runner", descriptor.Stage.ToString()],
+                Tool = runDescriptor.Tool,
+                Command = runDescriptor.Command,
             };
 
             await jobRepository.SaveRunAsync(jobId, run, cancellationToken);
@@ -74,6 +75,7 @@ public sealed class JobEngine(
                     StageExecutionOutcome.Failed => RunResult.Failed,
                     _ => throw new InvalidOperationException($"Unhandled stage outcome {result.Outcome}."),
                 },
+                Artifacts = result.Artifacts,
             };
 
             await jobRepository.SaveRunAsync(jobId, completedRun, cancellationToken);

@@ -10,6 +10,15 @@ internal sealed class ScriptedStageRunner(
     public JobStage Stage { get; } = stage;
     public StageRole Role { get; } = role;
 
+    public StageRunDescriptor DescribeRun(StoredJob job)
+    {
+        return new StageRunDescriptor
+        {
+            Tool = "scripted",
+            Command = ["scripted-runner", Stage.ToString()],
+        };
+    }
+
     public Task<StageExecutionResult> RunAsync(StageExecutionContext context, CancellationToken cancellationToken)
     {
         return handler(context, cancellationToken);

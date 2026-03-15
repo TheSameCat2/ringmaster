@@ -7,6 +7,15 @@ public sealed class FakeStageRunner(JobStage stage, StageRole role, JobState nex
     public JobStage Stage { get; } = stage;
     public StageRole Role { get; } = role;
 
+    public StageRunDescriptor DescribeRun(StoredJob job)
+    {
+        return new StageRunDescriptor
+        {
+            Tool = "fake",
+            Command = ["fake-runner", Stage.ToString()],
+        };
+    }
+
     public Task<StageExecutionResult> RunAsync(StageExecutionContext context, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
