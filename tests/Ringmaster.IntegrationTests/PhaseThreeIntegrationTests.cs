@@ -77,7 +77,9 @@ public sealed class PhaseThreeIntegrationTests
         PreparedWorktree second = await worktreeManager.PrepareAsync(repositoryRoot.Path, "job-20260315-7f3c9b2a", "Add retry handling", "master", CancellationToken.None);
         IReadOnlyList<GitWorktreeInfo> worktrees = await gitCli.ListWorktreesAsync(repositoryRoot.Path, CancellationToken.None);
 
-        Assert.Equal(first.WorktreePath, second.WorktreePath);
+        Assert.Equal(
+            TestPathComparer.Normalize(first.WorktreePath),
+            TestPathComparer.Normalize(second.WorktreePath));
         Assert.Equal(first.JobBranch, second.JobBranch);
         Assert.Equal(2, worktrees.Count);
     }
