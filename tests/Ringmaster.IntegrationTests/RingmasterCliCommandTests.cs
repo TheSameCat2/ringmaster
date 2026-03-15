@@ -160,7 +160,9 @@ public sealed class RingmasterCliCommandTests
         int exitCode = cli.CreateRootCommand().Parse(["worktree", "open", storedJob.Definition.JobId]).Invoke();
 
         Assert.Equal(0, exitCode);
-        Assert.Contains(worktreePath, console.Output, StringComparison.Ordinal);
+        Assert.True(
+            TestPathComparer.ContainsPath(console.Output, worktreePath),
+            $"Expected output to contain path '{worktreePath}', but got:{Environment.NewLine}{console.Output}");
     }
 
     [Fact]

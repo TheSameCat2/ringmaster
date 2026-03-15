@@ -116,9 +116,11 @@ internal sealed class TemporaryGitRepository : IDisposable
         };
 
         process.Start();
-        string stdout = await process.StandardOutput.ReadToEndAsync(cancellationToken);
-        string stderr = await process.StandardError.ReadToEndAsync(cancellationToken);
+        Task<string> stdoutTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
+        Task<string> stderrTask = process.StandardError.ReadToEndAsync(cancellationToken);
         await process.WaitForExitAsync(cancellationToken);
+        string stdout = await stdoutTask;
+        string stderr = await stderrTask;
 
         if (process.ExitCode != 0)
         {
@@ -157,6 +159,7 @@ internal sealed class TemporaryGitRepository : IDisposable
 
     private string GetWorktreeRoot()
     {
+        // Keep this in sync with GitWorktreeManager.GetWorktreeRoot.
         string repoRoot = System.IO.Path.GetFullPath(Path);
         string repoName = new DirectoryInfo(repoRoot).Name;
         string repoParent = Directory.GetParent(repoRoot)?.FullName
@@ -203,9 +206,12 @@ internal sealed class TemporaryGitRepository : IDisposable
         };
 
         process.Start();
-        string stdout = process.StandardOutput.ReadToEnd();
-        string stderr = process.StandardError.ReadToEnd();
+        Task<string> stdoutTask = process.StandardOutput.ReadToEndAsync();
+        Task<string> stderrTask = process.StandardError.ReadToEndAsync();
         process.WaitForExit();
+        Task.WaitAll(stdoutTask, stderrTask);
+        string stdout = stdoutTask.GetAwaiter().GetResult();
+        string stderr = stderrTask.GetAwaiter().GetResult();
 
         if (throwOnFailure && process.ExitCode != 0)
         {

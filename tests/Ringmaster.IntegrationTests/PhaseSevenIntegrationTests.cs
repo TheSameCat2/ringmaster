@@ -221,7 +221,9 @@ public sealed class PhaseSevenIntegrationTests
         Assert.False(File.Exists(oldLogPath));
         Assert.True(File.Exists(retainedJsonPath));
         Assert.Single(worktrees);
-        Assert.Equal(repositoryRoot.Path, worktrees[0].Path);
+        Assert.Equal(
+            TestPathComparer.Normalize(repositoryRoot.Path),
+            TestPathComparer.Normalize(worktrees[0].Path));
     }
 
     [Fact]

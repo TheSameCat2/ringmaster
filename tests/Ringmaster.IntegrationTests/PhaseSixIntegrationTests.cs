@@ -72,6 +72,7 @@ public sealed class PhaseSixIntegrationTests
         StoredJob storedJob = await repository.CreateAsync(CreateRequest("Queue run job"), CancellationToken.None);
         QueueProcessor queueProcessor = CreateQueueProcessor(temporaryDirectory.Path, repository, timeProvider);
         using CancellationTokenSource cancellationTokenSource = new(TimeSpan.FromSeconds(5));
+        Exception? runTaskError = null;
 
         Task runTask = queueProcessor.RunAsync(
             new QueueRunOptions
@@ -82,9 +83,28 @@ public sealed class PhaseSixIntegrationTests
             },
             cancellationTokenSource.Token);
 
-        await WaitForJobStateAsync(repository, storedJob.Definition.JobId, JobState.READY_FOR_PR, TimeSpan.FromSeconds(3));
-        cancellationTokenSource.Cancel();
-        await runTask;
+        try
+        {
+            await WaitForJobStateAsync(repository, storedJob.Definition.JobId, JobState.READY_FOR_PR, TimeSpan.FromSeconds(3));
+        }
+        finally
+        {
+            cancellationTokenSource.Cancel();
+
+            try
+            {
+                await runTask;
+            }
+            catch (Exception exception)
+            {
+                runTaskError = exception;
+            }
+        }
+
+        if (runTaskError is not null)
+        {
+            throw runTaskError;
+        }
 
         StoredJob reloaded = await repository.GetAsync(storedJob.Definition.JobId, CancellationToken.None)
             ?? throw new InvalidOperationException("The queued job was not found after queue run.");
@@ -159,10 +179,11 @@ public sealed class PhaseSixIntegrationTests
         TimeSpan timeout)
     {
         Stopwatch stopwatch = Stopwatch.StartNew();
+        StoredJob? job = null;
 
         while (stopwatch.Elapsed < timeout)
         {
-            StoredJob? job = await repository.GetAsync(jobId, CancellationToken.None);
+            job = await repository.GetAsync(jobId, CancellationToken.None);
             if (job?.Status.State is JobState state && state == expectedState)
             {
                 return;
@@ -171,8 +192,7 @@ public sealed class PhaseSixIntegrationTests
             await Task.Delay(TimeSpan.FromMilliseconds(25));
         }
 
-        StoredJob? finalJob = await repository.GetAsync(jobId, CancellationToken.None);
         throw new Xunit.Sdk.XunitException(
-            $"Expected job '{jobId}' to reach state {expectedState} within {timeout}, but found {finalJob?.Status.State.ToString() ?? "missing"}.");
+            $"Expected job '{jobId}' to reach state {expectedState} within {timeout}, but found {job?.Status.State.ToString() ?? "missing"}.");
     }
 }
