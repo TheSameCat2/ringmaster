@@ -85,6 +85,22 @@ public sealed class LocalFilesystemJobRepositoryTests
         Assert.Empty(tempFiles);
     }
 
+    [Theory]
+    [InlineData("../escape")]
+    [InlineData("..\\escape")]
+    [InlineData("/tmp/escape")]
+    [InlineData("C:\\temp\\escape")]
+    [InlineData("nested/job")]
+    [InlineData("nested\\job")]
+    public async Task GetAsyncRejectsPathTraversalOrRootedJobIdentifiers(string jobId)
+    {
+        using TemporaryDirectory temporaryDirectory = new();
+        DateTimeOffset createdAt = new(2026, 3, 15, 16, 45, 0, TimeSpan.Zero);
+        LocalFilesystemJobRepository repository = CreateRepository(temporaryDirectory.Path, createdAt);
+
+        await Assert.ThrowsAsync<ArgumentException>(() => repository.GetAsync(jobId, CancellationToken.None));
+    }
+
     private static LocalFilesystemJobRepository CreateRepository(string repositoryRoot, DateTimeOffset createdAt)
     {
         return new LocalFilesystemJobRepository(

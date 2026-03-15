@@ -1092,3 +1092,12 @@ All planned v1 implementation packets are complete. Pull from the deferred list 
 [6]: https://developers.openai.com/codex/cli/reference/?utm_source=chatgpt.com "Command line options"
 [7]: https://developers.openai.com/codex/noninteractive/?utm_source=chatgpt.com "Non-interactive mode"
 [8]: https://developers.openai.com/codex/guides/agents-md/?utm_source=chatgpt.com "Custom instructions with AGENTS.md"
+
+```text
+2026-03-15 21:46 UTC
+Packet: Security fix - job id path traversal
+Summary: Confirmed unvalidated job identifiers still reached filesystem path builders, then added centralized RingmasterPaths job-id validation that rejects rooted and segmented paths before any job file read/write, plus integration coverage for traversal-shaped identifiers.
+Tests: dotnet build Ringmaster.sln (fails: dotnet not installed); dotnet test Ringmaster.sln (fails: dotnet not installed); ./src/Ringmaster.App/bin/Debug/net10.0/ringmaster --help (fails: binary missing because build unavailable); bash -n scripts/dev/*.sh
+Files: src/Ringmaster.Infrastructure/Persistence/LocalFilesystemJobRepository.cs; tests/Ringmaster.IntegrationTests/LocalFilesystemJobRepositoryTests.cs
+Follow-ups: When a .NET SDK is available in CI/dev shell, rerun full build and test validation to confirm green end-to-end.
+```
