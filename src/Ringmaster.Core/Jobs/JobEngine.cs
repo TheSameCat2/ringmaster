@@ -10,16 +10,33 @@ public sealed class JobEngine(
 
     public async Task<JobStatusSnapshot> RunAsync(string jobId, CancellationToken cancellationToken)
     {
+        return await ExecuteAsync(jobId, allowResume: false, cancellationToken);
+    }
+
+    public async Task<JobStatusSnapshot> ResumeAsync(string jobId, CancellationToken cancellationToken)
+    {
+        return await ExecuteAsync(jobId, allowResume: true, cancellationToken);
+    }
+
+    private async Task<JobStatusSnapshot> ExecuteAsync(string jobId, bool allowResume, CancellationToken cancellationToken)
+    {
         StoredJob storedJob = await jobRepository.GetAsync(jobId, cancellationToken)
             ?? throw new InvalidOperationException($"Job '{jobId}' was not found.");
 
-        if (storedJob.Status.State is not JobState.QUEUED)
+        JobStatusSnapshot status = storedJob.Status.State switch
         {
-            throw new InvalidOperationException(
-                $"Job '{jobId}' is in state {storedJob.Status.State} and cannot be started with 'job run'.");
-        }
+            JobState.QUEUED => await TransitionAsync(jobId, JobState.QUEUED, JobState.PREPARING, cancellationToken),
+            JobState.PREPARING or JobState.IMPLEMENTING or JobState.VERIFYING or JobState.REPAIRING or JobState.REVIEWING when allowResume => storedJob.Status,
+            _ => throw new InvalidOperationException(
+                allowResume
+                    ? $"Job '{jobId}' is in state {storedJob.Status.State} and cannot be resumed automatically."
+                    : $"Job '{jobId}' is in state {storedJob.Status.State} and cannot be started with 'job run'."),
+        };
 
-        JobStatusSnapshot status = await TransitionAsync(jobId, JobState.QUEUED, JobState.PREPARING, cancellationToken);
+        if (allowResume && storedJob.Status.Execution.Status is ExecutionStatus.Running)
+        {
+            await MarkAbandonedRunAsync(storedJob, cancellationToken);
+        }
 
         while (!stateMachine.IsAutomaticTerminal(status.State))
         {
@@ -138,6 +155,50 @@ public sealed class JobEngine(
         }
 
         return status;
+    }
+
+    private async Task MarkAbandonedRunAsync(StoredJob storedJob, CancellationToken cancellationToken)
+    {
+        JobExecutionSnapshot execution = storedJob.Status.Execution;
+        if (execution.RunId is null || execution.Stage is null || execution.Role is null || execution.StartedAtUtc is null)
+        {
+            return;
+        }
+
+        string runId = execution.RunId;
+        string tool = "abandoned";
+        IReadOnlyList<string> command = [];
+        string runPath = Path.Combine(storedJob.JobDirectoryPath, "runs", runId, "run.json");
+        if (File.Exists(runPath))
+        {
+            string runJson = await File.ReadAllTextAsync(runPath, cancellationToken);
+            JobRunRecord existing = Core.Serialization.RingmasterJsonSerializer.Deserialize<JobRunRecord>(runJson);
+            tool = existing.Tool;
+            command = existing.Command;
+
+            if (existing.Result is not null && existing.CompletedAtUtc is not null)
+            {
+                return;
+            }
+        }
+
+        await jobRepository.SaveRunAsync(
+            storedJob.Definition.JobId,
+            new JobRunRecord
+            {
+                RunId = runId,
+                JobId = storedJob.Definition.JobId,
+                Stage = execution.Stage.Value,
+                Role = execution.Role.Value,
+                Attempt = execution.Attempt,
+                StartedAtUtc = execution.StartedAtUtc.Value,
+                CompletedAtUtc = timeProvider.GetUtcNow(),
+                Tool = tool,
+                Command = command,
+                SessionId = execution.SessionId,
+                Result = RunResult.Canceled,
+            },
+            cancellationToken);
     }
 
     private async Task<JobStatusSnapshot> TransitionAsync(string jobId, JobState from, JobState to, CancellationToken cancellationToken)

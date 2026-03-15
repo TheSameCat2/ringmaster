@@ -15,4 +15,9 @@
     <Using Include="Xunit" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Ringmaster.Core\Ringmaster.Core.csproj" />
+    <ProjectReference Include="..\..\src\Ringmaster.Infrastructure\Ringmaster.Infrastructure.csproj" />
+  </ItemGroup>
+
 </Project>

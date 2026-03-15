@@ -9,6 +9,7 @@ public sealed class RingmasterCli(
     IAnsiConsole console,
     IJobRepository jobRepository,
     JobEngine jobEngine,
+    QueueProcessor queueProcessor,
     RingmasterApplicationContext applicationContext)
 {
     public RootCommand CreateRootCommand()
@@ -49,8 +50,8 @@ public sealed class RingmasterCli(
     private Command CreateQueueCommand()
     {
         Command command = new("queue", "Run the scheduler loop or a single scheduling pass.");
-        command.Subcommands.Add(CreatePlaceholderCommand("run", "Start the long-running worker loop."));
-        command.Subcommands.Add(CreatePlaceholderCommand("once", "Run one scheduling pass."));
+        command.Subcommands.Add(CreateQueueRunCommand());
+        command.Subcommands.Add(CreateQueueOnceCommand());
         return command;
     }
 
@@ -316,5 +317,84 @@ public sealed class RingmasterCli(
     {
         console.Write(new Text(RingmasterJsonSerializer.Serialize(value)));
         console.WriteLine();
+    }
+
+    private Command CreateQueueOnceCommand()
+    {
+        Command command = new("once", "Run one scheduling pass.");
+        Option<int> maxParallelOption = new("--max-parallel") { Description = "Maximum jobs to start in this pass.", DefaultValueFactory = _ => 1 };
+        Option<bool> jsonOption = new("--json") { Description = "Emit JSON output." };
+
+        command.Options.Add(maxParallelOption);
+        command.Options.Add(jsonOption);
+
+        command.SetAction(async (parseResult, cancellationToken) =>
+        {
+            QueuePassResult result = await queueProcessor.RunOnceAsync(
+                new QueueRunOptions
+                {
+                    MaxParallelJobs = Math.Max(1, parseResult.GetValue(maxParallelOption)),
+                    OwnerId = applicationContext.CurrentActor,
+                },
+                cancellationToken);
+
+            if (parseResult.GetValue(jsonOption))
+            {
+                WriteJson(result);
+                return 0;
+            }
+
+            if (result.Jobs.Count == 0)
+            {
+                console.MarkupLine("[yellow]No runnable jobs.[/]");
+                return 0;
+            }
+
+            foreach (QueueJobResult job in result.Jobs)
+            {
+                console.MarkupLine($"{Markup.Escape(job.JobId)} [blue]{job.Disposition}[/] {Markup.Escape(job.Summary)}");
+            }
+
+            return 0;
+        });
+
+        return command;
+    }
+
+    private Command CreateQueueRunCommand()
+    {
+        Command command = new("run", "Start the long-running worker loop.");
+        Option<int> maxParallelOption = new("--max-parallel") { Description = "Maximum jobs to run concurrently.", DefaultValueFactory = _ => 1 };
+        Option<int> pollIntervalMsOption = new("--poll-interval-ms") { Description = "Delay between idle scheduling passes.", DefaultValueFactory = _ => 2000 };
+
+        command.Options.Add(maxParallelOption);
+        command.Options.Add(pollIntervalMsOption);
+
+        command.SetAction(async (parseResult, cancellationToken) =>
+        {
+            try
+            {
+                await queueProcessor.RunAsync(
+                    new QueueRunOptions
+                    {
+                        MaxParallelJobs = Math.Max(1, parseResult.GetValue(maxParallelOption)),
+                        PollInterval = TimeSpan.FromMilliseconds(Math.Max(100, parseResult.GetValue(pollIntervalMsOption))),
+                        OwnerId = applicationContext.CurrentActor,
+                    },
+                    cancellationToken);
+                return 0;
+            }
+            catch (OperationCanceledException)
+            {
+                return 0;
+            }
+            catch (InvalidOperationException exception)
+            {
+                console.MarkupLine($"[red]{Markup.Escape(exception.Message)}[/]");
+                return 1;
+            }
+        });
+
+        return command;
     }
 }

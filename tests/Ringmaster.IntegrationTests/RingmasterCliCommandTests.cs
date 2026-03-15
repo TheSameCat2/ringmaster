@@ -53,6 +53,29 @@ public sealed class RingmasterCliCommandTests
         Assert.Contains("\"attempts\": {", output, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void QueueOnceCommandRunsQueuedJobs()
+    {
+        using TemporaryDirectory temporaryDirectory = new();
+        TestConsole console = new();
+        RingmasterCli cli = CreateCli(console, temporaryDirectory.Path);
+
+        int createExitCode = cli.CreateRootCommand().Parse(
+            ["job", "create", "--title", "Add retry handling", "--description", "Implement bounded retries.", "--json"]).Invoke();
+        int queueExitCode = cli.CreateRootCommand().Parse(
+            ["queue", "once", "--json"]).Invoke();
+        int statusExitCode = cli.CreateRootCommand().Parse(
+            ["status", "--job-id", "job-20260315-7f3c9b2a", "--json"]).Invoke();
+
+        string output = console.Output;
+
+        Assert.Equal(0, createExitCode);
+        Assert.Equal(0, queueExitCode);
+        Assert.Equal(0, statusExitCode);
+        Assert.Contains("\"disposition\": \"Started\"", output, StringComparison.Ordinal);
+        Assert.Contains("\"state\": \"READY_FOR_PR\"", output, StringComparison.Ordinal);
+    }
+
     private static RingmasterCli CreateCli(TestConsole console, string repositoryRoot)
     {
         DateTimeOffset createdAt = new(2026, 3, 15, 16, 45, 0, TimeSpan.Zero);
@@ -75,7 +98,14 @@ public sealed class RingmasterCliCommandTests
                 new FakeStageRunner(JobStage.REVIEWING, StageRole.Reviewer, JobState.READY_FOR_PR, "Reviewer approved."),
             ],
             timeProvider);
+        FileLeaseManager leaseManager = new(repositoryRoot, new AtomicFileWriter(), timeProvider);
+        QueueProcessor queueProcessor = new(
+            new LocalFilesystemQueueSelector(repository, leaseManager),
+            leaseManager,
+            new WebhookPlaceholderNotificationSink(),
+            jobEngine,
+            timeProvider);
 
-        return new RingmasterCli(console, repository, jobEngine, new RingmasterApplicationContext(repositoryRoot, "tester"));
+        return new RingmasterCli(console, repository, jobEngine, queueProcessor, new RingmasterApplicationContext(repositoryRoot, "tester"));
     }
 }

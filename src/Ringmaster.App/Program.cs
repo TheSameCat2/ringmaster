@@ -34,6 +34,15 @@ builder.Services.AddSingleton<IJobRepository>(serviceProvider =>
         serviceProvider.GetRequiredService<JobEventLogStore>(),
         serviceProvider.GetRequiredService<JobSnapshotRebuilder>());
 });
+builder.Services.AddSingleton<ILeaseManager>(serviceProvider =>
+{
+    RingmasterApplicationContext applicationContext = serviceProvider.GetRequiredService<RingmasterApplicationContext>();
+    return new FileLeaseManager(
+        applicationContext.RepositoryRoot,
+        serviceProvider.GetRequiredService<AtomicFileWriter>(),
+        serviceProvider.GetRequiredService<TimeProvider>());
+});
+builder.Services.AddSingleton<IQueueSelector, LocalFilesystemQueueSelector>();
 builder.Services.AddSingleton<GitCli>();
 builder.Services.AddSingleton<GitWorktreeManager>();
 builder.Services.AddSingleton<RepositoryPreparationService>(serviceProvider =>
@@ -53,6 +62,24 @@ builder.Services.AddSingleton<IFailureClassifier, DeterministicFailureClassifier
 builder.Services.AddSingleton(new RepairLoopPolicy());
 builder.Services.AddSingleton<RepairLoopPolicyEvaluator>();
 builder.Services.AddSingleton<PullRequestDraftBuilder>();
+builder.Services.AddSingleton<ConsoleNotificationSink>();
+builder.Services.AddSingleton<JsonlNotificationSink>(serviceProvider =>
+{
+    RingmasterApplicationContext applicationContext = serviceProvider.GetRequiredService<RingmasterApplicationContext>();
+    return new JsonlNotificationSink(
+        applicationContext.RepositoryRoot,
+        serviceProvider.GetRequiredService<AtomicFileWriter>());
+});
+builder.Services.AddSingleton<WebhookPlaceholderNotificationSink>();
+builder.Services.AddSingleton<INotificationSink>(serviceProvider =>
+{
+    return new CompositeNotificationSink(
+    [
+        serviceProvider.GetRequiredService<ConsoleNotificationSink>(),
+        serviceProvider.GetRequiredService<JsonlNotificationSink>(),
+        serviceProvider.GetRequiredService<WebhookPlaceholderNotificationSink>(),
+    ]);
+});
 builder.Services.AddSingleton<IStateMachine, RingmasterStateMachine>();
 builder.Services.AddSingleton<IStageRunner>(serviceProvider =>
 {
@@ -101,6 +128,7 @@ builder.Services.AddSingleton<IStageRunner>(serviceProvider =>
         serviceProvider.GetRequiredService<PullRequestDraftBuilder>());
 });
 builder.Services.AddSingleton<JobEngine>();
+builder.Services.AddSingleton<QueueProcessor>();
 builder.Services.AddSingleton<RingmasterCli>();
 
 using IHost host = builder.Build();

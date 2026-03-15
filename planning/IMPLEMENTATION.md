@@ -380,20 +380,20 @@ Move from single-job foreground execution to unattended multi-job execution with
 
 ### Work packets
 
-* [ ] **P6.1** Implement queue scanning from job directories.
-* [ ] **P6.2** Implement scheduler prioritization and `nextEligibleAtUtc`.
-* [ ] **P6.3** Implement job lease acquisition and heartbeats.
-* [ ] **P6.4** Implement repo mutation locks.
-* [ ] **P6.5** Implement abandoned-run detection.
-* [ ] **P6.6** Implement crash recovery and safe resume behavior.
-* [ ] **P6.7** Implement bounded worker pool and concurrency limits.
-* [ ] **P6.8** Implement `queue once` and `queue run`.
-* [ ] **P6.9** Implement minimal notification sinks:
+* [x] **P6.1** Implement queue scanning from job directories.
+* [x] **P6.2** Implement scheduler prioritization and `nextEligibleAtUtc`.
+* [x] **P6.3** Implement job lease acquisition and heartbeats.
+* [x] **P6.4** Implement repo mutation locks.
+* [x] **P6.5** Implement abandoned-run detection.
+* [x] **P6.6** Implement crash recovery and safe resume behavior.
+* [x] **P6.7** Implement bounded worker pool and concurrency limits.
+* [x] **P6.8** Implement `queue once` and `queue run`.
+* [x] **P6.9** Implement minimal notification sinks:
 
   * console
   * file/jsonl
   * webhook placeholder
-* [ ] **P6.10** Add failure-injection tests for crash mid-run, stale leases, and lock contention.
+* [x] **P6.10** Add failure-injection tests for crash mid-run, stale leases, and lock contention.
 
 ### Notes
 
@@ -1006,11 +1006,38 @@ Files: tests/Ringmaster.IntegrationTests/PhaseFiveIntegrationTests.cs; tests/Rin
 Follow-ups: The scheduler phase can now treat READY_FOR_PR and BLOCKED states as proven outputs of a real repair/review loop.
 ```
 
+```text
+2026-03-15 19:08 UTC
+Packet: P6.1-P6.4
+Summary: Added durable queue selection from on-disk job state, priority and nextEligible ordering, file-backed job and repo leases with heartbeats, and scheduler-safe queue processing around the existing per-job engine.
+Tests: dotnet build Ringmaster.sln; dotnet test tests/Ringmaster.IntegrationTests/Ringmaster.IntegrationTests.csproj --filter PhaseSixIntegrationTests; dotnet test Ringmaster.sln
+Files: src/Ringmaster.Core/Jobs/QueueContracts.cs; src/Ringmaster.Core/Jobs/QueueProcessor.cs; src/Ringmaster.Infrastructure/Persistence/LocalFilesystemQueueSelector.cs; src/Ringmaster.Infrastructure/Persistence/FileLeaseManager.cs; src/Ringmaster.Infrastructure/Persistence/LocalFilesystemJobRepository.cs; src/Ringmaster.App/Program.cs
+Follow-ups: Phase 7 can layer PR publication and cleanup policies on the same queue and lease shell without changing job execution semantics.
+```
+
+```text
+2026-03-15 19:08 UTC
+Packet: P6.5-P6.9
+Summary: Added abandoned-run recovery through JobEngine resume behavior, queue once and queue run CLI commands, scheduler lock handling, and minimal console/jsonl/webhook notification sinks for unattended execution.
+Tests: dotnet build Ringmaster.sln; dotnet test tests/Ringmaster.IntegrationTests/Ringmaster.IntegrationTests.csproj --filter PhaseSixIntegrationTests; dotnet test Ringmaster.sln
+Files: src/Ringmaster.Core/Jobs/JobEngine.cs; src/Ringmaster.App/CommandLine/RingmasterCli.cs; src/Ringmaster.App/ConsoleNotificationSink.cs; src/Ringmaster.Infrastructure/Persistence/NotificationSinks.cs; tests/Ringmaster.IntegrationTests/RingmasterCliCommandTests.cs; tests/Ringmaster.IntegrationTests/PhaseSixIntegrationTests.cs
+Follow-ups: The PR-provider phase can consume the same notifications and scheduler loop instead of inventing a second execution path.
+```
+
+```text
+2026-03-15 19:08 UTC
+Packet: P6.10
+Summary: Added failure-injection coverage for abandoned active runs, stale lease recovery, and repo-lock contention so crash and contention behavior is proven instead of assumed.
+Tests: dotnet build Ringmaster.sln; dotnet test tests/Ringmaster.FaultInjectionTests/Ringmaster.FaultInjectionTests.csproj --filter QueueRecoveryFaultInjectionTests; dotnet test Ringmaster.sln
+Files: tests/Ringmaster.FaultInjectionTests/Ringmaster.FaultInjectionTests.csproj; tests/Ringmaster.FaultInjectionTests/QueueRecoveryFaultInjectionTests.cs
+Follow-ups: Phase 8 can extend the same fault-injection harness for cross-platform lock semantics and portability checks.
+```
+
 ---
 
 ## Immediate next step
 
-Start **Phase 6, Packet P6.1** and introduce durable leases plus a scheduler-safe execution loop so jobs can survive process restarts and run unattended without overlapping work.
+Start **Phase 7, Packet P7.1** and implement the PR provider abstraction so READY_FOR_PR jobs can publish results without pushing GitHub side effects into the stage workers.
 
 [1]: https://developers.openai.com/codex/cli/?utm_source=chatgpt.com "Codex CLI"
 [2]: https://developers.openai.com/codex/learn/best-practices/?utm_source=chatgpt.com "Best practices"
