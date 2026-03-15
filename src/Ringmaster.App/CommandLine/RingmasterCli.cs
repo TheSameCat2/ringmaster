@@ -1,6 +1,7 @@
 using System.CommandLine;
 using Ringmaster.Core.Jobs;
 using Ringmaster.Core.Serialization;
+using Ringmaster.Git;
 using Spectre.Console;
 
 namespace Ringmaster.App.CommandLine;
@@ -10,6 +11,9 @@ public sealed class RingmasterCli(
     IJobRepository jobRepository,
     JobEngine jobEngine,
     QueueProcessor queueProcessor,
+    IPullRequestService pullRequestService,
+    DoctorService doctorService,
+    CleanupService cleanupService,
     RingmasterApplicationContext applicationContext)
 {
     public RootCommand CreateRootCommand()
@@ -17,14 +21,14 @@ public sealed class RingmasterCli(
         RootCommand rootCommand = new("Durable Codex orchestration for git-backed engineering work.");
 
         rootCommand.Subcommands.Add(CreatePlaceholderCommand("init", "Initialize local Ringmaster runtime layout."));
-        rootCommand.Subcommands.Add(CreatePlaceholderCommand("doctor", "Check local prerequisites and repo health."));
+        rootCommand.Subcommands.Add(CreateDoctorCommand());
         rootCommand.Subcommands.Add(CreateJobCommand());
         rootCommand.Subcommands.Add(CreateQueueCommand());
         rootCommand.Subcommands.Add(CreateStatusCommand());
         rootCommand.Subcommands.Add(CreatePlaceholderCommand("logs", "Inspect stored run logs."));
         rootCommand.Subcommands.Add(CreatePrCommand());
         rootCommand.Subcommands.Add(CreateWorktreeCommand());
-        rootCommand.Subcommands.Add(CreatePlaceholderCommand("cleanup", "Prune expired worktrees and old artifacts."));
+        rootCommand.Subcommands.Add(CreateCleanupCommand());
 
         rootCommand.SetAction(_ =>
         {
@@ -33,6 +37,34 @@ public sealed class RingmasterCli(
         });
 
         return rootCommand;
+    }
+
+    private Command CreateDoctorCommand()
+    {
+        Command command = new("doctor", "Check local prerequisites and repo health.");
+        Option<bool> jsonOption = new("--json") { Description = "Emit JSON output." };
+        command.Options.Add(jsonOption);
+
+        command.SetAction(async (parseResult, cancellationToken) =>
+        {
+            DoctorReport report = await doctorService.RunAsync(cancellationToken);
+
+            if (parseResult.GetValue(jsonOption))
+            {
+                WriteJson(report);
+                return report.Succeeded ? 0 : 1;
+            }
+
+            foreach (DoctorCheckResult check in report.Checks)
+            {
+                string statusText = check.Succeeded ? "[green]ok[/]" : "[red]fail[/]";
+                console.MarkupLine($"{statusText} {Markup.Escape(check.Name)}: {Markup.Escape(check.Detail)}");
+            }
+
+            return report.Succeeded ? 0 : 1;
+        });
+
+        return command;
     }
 
     private Command CreateJobCommand()
@@ -58,14 +90,14 @@ public sealed class RingmasterCli(
     private Command CreatePrCommand()
     {
         Command command = new("pr", "Open and inspect pull request state.");
-        command.Subcommands.Add(CreatePlaceholderCommand("open", "Open the pull request for a ready job."));
+        command.Subcommands.Add(CreatePrOpenCommand());
         return command;
     }
 
     private Command CreateWorktreeCommand()
     {
         Command command = new("worktree", "Inspect or open job worktrees.");
-        command.Subcommands.Add(CreatePlaceholderCommand("open", "Print or open a job worktree path."));
+        command.Subcommands.Add(CreateWorktreeOpenCommand());
         return command;
     }
 
@@ -86,6 +118,9 @@ public sealed class RingmasterCli(
         Option<string> verifyProfileOption = new("--verify-profile") { Description = "Verification profile name.", DefaultValueFactory = _ => "default" };
         Option<string> baseBranchOption = new("--base-branch") { Description = "Repository base branch.", DefaultValueFactory = _ => "master" };
         Option<int> priorityOption = new("--priority") { Description = "Queue priority.", DefaultValueFactory = _ => 50 };
+        Option<bool> autoOpenPrOption = new("--auto-open-pr") { Description = "Automatically publish the PR after review." };
+        Option<bool> draftPrOption = new("--draft-pr") { Description = "Create the PR as a draft.", DefaultValueFactory = _ => true };
+        Option<string[]> labelsOption = new("--label") { Description = "Pull request label. Repeat for multiple labels." };
         Option<bool> jsonOption = new("--json") { Description = "Emit JSON output." };
 
         command.Options.Add(titleOption);
@@ -95,6 +130,9 @@ public sealed class RingmasterCli(
         command.Options.Add(verifyProfileOption);
         command.Options.Add(baseBranchOption);
         command.Options.Add(priorityOption);
+        command.Options.Add(autoOpenPrOption);
+        command.Options.Add(draftPrOption);
+        command.Options.Add(labelsOption);
         command.Options.Add(jsonOption);
 
         command.Validators.Add(result =>
@@ -123,16 +161,19 @@ public sealed class RingmasterCli(
 
             StoredJob storedJob = await jobRepository.CreateAsync(
                 new JobCreateRequest
-                    {
-                        Title = title,
-                        Description = description ?? string.Empty,
-                        JobMarkdown = taskFile is null ? null : description,
-                        AcceptanceCriteria = parseResult.GetValue(acceptanceOption) ?? [],
-                        VerificationProfile = parseResult.GetValue(verifyProfileOption) ?? "default",
-                        BaseBranch = parseResult.GetValue(baseBranchOption) ?? "master",
-                        Priority = parseResult.GetValue(priorityOption),
-                        CreatedBy = applicationContext.CurrentActor,
-                    },
+                {
+                    Title = title,
+                    Description = description ?? string.Empty,
+                    JobMarkdown = taskFile is null ? null : description,
+                    AcceptanceCriteria = parseResult.GetValue(acceptanceOption) ?? [],
+                    VerificationProfile = parseResult.GetValue(verifyProfileOption) ?? "default",
+                    BaseBranch = parseResult.GetValue(baseBranchOption) ?? "master",
+                    Priority = parseResult.GetValue(priorityOption),
+                    AutoOpenPullRequest = parseResult.GetValue(autoOpenPrOption),
+                    DraftPullRequest = parseResult.GetValue(draftPrOption),
+                    PullRequestLabels = parseResult.GetValue(labelsOption) ?? [],
+                    CreatedBy = applicationContext.CurrentActor,
+                },
                 cancellationToken);
 
             if (parseResult.GetValue(jsonOption))
@@ -223,6 +264,11 @@ public sealed class RingmasterCli(
             try
             {
                 JobStatusSnapshot status = await jobEngine.RunAsync(jobId, cancellationToken);
+                if (status.State is JobState.READY_FOR_PR)
+                {
+                    PullRequestOperationResult publication = await pullRequestService.PublishIfConfiguredAsync(jobId, cancellationToken);
+                    status = publication.Status;
+                }
 
                 if (parseResult.GetValue(jsonOption))
                 {
@@ -313,12 +359,6 @@ public sealed class RingmasterCli(
         return command;
     }
 
-    private void WriteJson<T>(T value)
-    {
-        console.Write(new Text(RingmasterJsonSerializer.Serialize(value)));
-        console.WriteLine();
-    }
-
     private Command CreateQueueOnceCommand()
     {
         Command command = new("once", "Run one scheduling pass.");
@@ -396,5 +436,154 @@ public sealed class RingmasterCli(
         });
 
         return command;
+    }
+
+    private Command CreatePrOpenCommand()
+    {
+        Command command = new("open", "Open the pull request for a ready job.");
+        Argument<string> jobIdArgument = new("job-id") { Description = "Job identifier." };
+        Option<bool> jsonOption = new("--json") { Description = "Emit JSON output." };
+
+        command.Arguments.Add(jobIdArgument);
+        command.Options.Add(jsonOption);
+
+        command.SetAction(async (parseResult, cancellationToken) =>
+        {
+            string jobId = parseResult.GetValue(jobIdArgument)
+                ?? throw new InvalidOperationException("The required job identifier was not provided.");
+
+            try
+            {
+                PullRequestOperationResult result = await pullRequestService.PublishAsync(jobId, cancellationToken);
+
+                if (parseResult.GetValue(jsonOption))
+                {
+                    WriteJson(result);
+                    return result.Published ? 0 : 1;
+                }
+
+                if (result.Published)
+                {
+                    console.MarkupLine($"[green]{Markup.Escape(result.Summary)}[/]");
+                    if (!string.IsNullOrWhiteSpace(result.Url))
+                    {
+                        console.MarkupLine($"URL: {Markup.Escape(result.Url)}");
+                    }
+                    return 0;
+                }
+
+                console.MarkupLine($"[red]{Markup.Escape(result.Summary)}[/]");
+                return 1;
+            }
+            catch (InvalidOperationException exception)
+            {
+                console.MarkupLine($"[red]{Markup.Escape(exception.Message)}[/]");
+                return 1;
+            }
+        });
+
+        return command;
+    }
+
+    private Command CreateWorktreeOpenCommand()
+    {
+        Command command = new("open", "Print the job worktree path.");
+        Argument<string> jobIdArgument = new("job-id") { Description = "Job identifier." };
+        Option<bool> jsonOption = new("--json") { Description = "Emit JSON output." };
+
+        command.Arguments.Add(jobIdArgument);
+        command.Options.Add(jsonOption);
+
+        command.SetAction(async (parseResult, cancellationToken) =>
+        {
+            string jobId = parseResult.GetValue(jobIdArgument)
+                ?? throw new InvalidOperationException("The required job identifier was not provided.");
+            StoredJob? storedJob = await jobRepository.GetAsync(jobId, cancellationToken);
+
+            if (storedJob is null)
+            {
+                console.MarkupLine($"[red]Job not found:[/] {Markup.Escape(jobId)}");
+                return 1;
+            }
+
+            string? worktreePath = storedJob.Status.Git?.WorktreePath;
+            bool exists = !string.IsNullOrWhiteSpace(worktreePath) && Directory.Exists(worktreePath);
+
+            if (parseResult.GetValue(jsonOption))
+            {
+                WriteJson(new
+                {
+                    storedJob.Definition.JobId,
+                    WorktreePath = worktreePath,
+                    Exists = exists,
+                });
+                return exists ? 0 : 1;
+            }
+
+            if (!exists)
+            {
+                console.MarkupLine($"[red]No live worktree is available for[/] {Markup.Escape(jobId)}");
+                if (!string.IsNullOrWhiteSpace(worktreePath))
+                {
+                    console.MarkupLine($"Last recorded path: [grey]{Markup.Escape(worktreePath)}[/]");
+                }
+                return 1;
+            }
+
+            console.MarkupLine(Markup.Escape(worktreePath!));
+            return 0;
+        });
+
+        return command;
+    }
+
+    private Command CreateCleanupCommand()
+    {
+        Command command = new("cleanup", "Prune expired worktrees and old artifacts.");
+        Option<int> retainDaysOption = new("--retain-days") { Description = "Days to retain finished worktrees.", DefaultValueFactory = _ => 7 };
+        Option<int> artifactRetainDaysOption = new("--artifact-retain-days") { Description = "Days to retain run log artifacts.", DefaultValueFactory = _ => 30 };
+        Option<bool> jsonOption = new("--json") { Description = "Emit JSON output." };
+
+        command.Options.Add(retainDaysOption);
+        command.Options.Add(artifactRetainDaysOption);
+        command.Options.Add(jsonOption);
+
+        command.SetAction(async (parseResult, cancellationToken) =>
+        {
+            CleanupResult result = await cleanupService.RunAsync(
+                new CleanupOptions
+                {
+                    WorktreeRetention = TimeSpan.FromDays(Math.Max(0, parseResult.GetValue(retainDaysOption))),
+                    ArtifactRetention = TimeSpan.FromDays(Math.Max(0, parseResult.GetValue(artifactRetainDaysOption))),
+                },
+                cancellationToken);
+
+            if (parseResult.GetValue(jsonOption))
+            {
+                WriteJson(result);
+                return result.Jobs.Any(job => job.Disposition is CleanupDisposition.Error) ? 1 : 0;
+            }
+
+            if (result.Jobs.Count == 0)
+            {
+                console.MarkupLine("[yellow]No jobs available for cleanup.[/]");
+                return 0;
+            }
+
+            foreach (JobCleanupResult job in result.Jobs)
+            {
+                console.MarkupLine($"{Markup.Escape(job.JobId)} [blue]{job.Disposition}[/] {Markup.Escape(job.Summary)}");
+            }
+
+            return result.Jobs.Any(job => job.Disposition is CleanupDisposition.Error) ? 1 : 0;
+        });
+
+        return command;
+    }
+
+    private void WriteJson<T>(T value)
+    {
+        console.Write(new Text(RingmasterJsonSerializer.Serialize(value)));
+        console.WriteLine();
     }
 }

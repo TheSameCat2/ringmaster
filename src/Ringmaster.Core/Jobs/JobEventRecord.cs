@@ -19,6 +19,8 @@ public sealed record class JobEventRecord
     public JobState? To { get; init; }
     public int? Priority { get; init; }
     public bool? PullRequestDraft { get; init; }
+    public PullRequestStatus? PullRequestStatus { get; init; }
+    public string? PullRequestUrl { get; init; }
     public DateTimeOffset? CreatedAtUtc { get; init; }
     public DateTimeOffset? UpdatedAtUtc { get; init; }
     public DateTimeOffset? NextEligibleAtUtc { get; init; }
@@ -134,6 +136,28 @@ public sealed record class JobEventRecord
             JobId = jobId,
             FailureCategory = failureCategory,
             Signature = signature,
+            Summary = summary,
+            UpdatedAtUtc = timestampUtc,
+        };
+    }
+
+    public static JobEventRecord CreatePullRequestRecorded(
+        string jobId,
+        PullRequestStatus status,
+        string? url,
+        bool draft,
+        string summary,
+        DateTimeOffset timestampUtc)
+    {
+        return new JobEventRecord
+        {
+            Sequence = 0,
+            TimestampUtc = timestampUtc,
+            Type = JobEventType.PullRequestRecorded,
+            JobId = jobId,
+            PullRequestStatus = status,
+            PullRequestUrl = url,
+            PullRequestDraft = draft,
             Summary = summary,
             UpdatedAtUtc = timestampUtc,
         };

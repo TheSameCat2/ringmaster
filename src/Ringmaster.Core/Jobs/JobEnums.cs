@@ -87,6 +87,7 @@ public enum JobEventType
     JobCreated,
     StateChanged,
     GitStateCaptured,
+    PullRequestRecorded,
     FailureRecorded,
     ReviewRecorded,
     RunStarted,

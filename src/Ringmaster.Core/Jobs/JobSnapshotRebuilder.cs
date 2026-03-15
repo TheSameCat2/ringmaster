@@ -21,6 +21,7 @@ public sealed class JobSnapshotRebuilder
             JobEventType.JobCreated => ApplyJobCreated(jobEvent),
             JobEventType.StateChanged => ApplyStateChanged(current, jobEvent),
             JobEventType.GitStateCaptured => ApplyGitStateCaptured(current, jobEvent),
+            JobEventType.PullRequestRecorded => ApplyPullRequestRecorded(current, jobEvent),
             JobEventType.FailureRecorded => ApplyFailureRecorded(current, jobEvent),
             JobEventType.ReviewRecorded => ApplyReviewRecorded(current, jobEvent),
             JobEventType.RunStarted => ApplyRunStarted(current, jobEvent),
@@ -114,6 +115,22 @@ public sealed class JobSnapshotRebuilder
         return snapshot with
         {
             LastFailure = BuildFailureSnapshot(snapshot.LastFailure, jobEvent),
+            UpdatedAtUtc = jobEvent.UpdatedAtUtc ?? jobEvent.TimestampUtc,
+        };
+    }
+
+    private static JobStatusSnapshot ApplyPullRequestRecorded(JobStatusSnapshot? current, JobEventRecord jobEvent)
+    {
+        JobStatusSnapshot snapshot = current ?? throw new InvalidOperationException("PullRequestRecorded cannot be applied before JobCreated.");
+
+        return snapshot with
+        {
+            Pr = new JobPullRequestSnapshot
+            {
+                Status = jobEvent.PullRequestStatus ?? snapshot.Pr.Status,
+                Url = jobEvent.PullRequestUrl ?? snapshot.Pr.Url,
+                Draft = jobEvent.PullRequestDraft ?? snapshot.Pr.Draft,
+            },
             UpdatedAtUtc = jobEvent.UpdatedAtUtc ?? jobEvent.TimestampUtc,
         };
     }

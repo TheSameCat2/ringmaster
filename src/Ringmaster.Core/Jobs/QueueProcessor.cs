@@ -5,7 +5,8 @@ public sealed class QueueProcessor(
     ILeaseManager leaseManager,
     INotificationSink notificationSink,
     JobEngine jobEngine,
-    TimeProvider timeProvider)
+    TimeProvider timeProvider,
+    IPullRequestService? pullRequestService = null)
 {
     public async Task<QueuePassResult> RunOnceAsync(QueueRunOptions options, CancellationToken cancellationToken)
     {
@@ -102,6 +103,17 @@ public sealed class QueueProcessor(
             JobStatusSnapshot status = candidate.ResumeExistingState
                 ? await jobEngine.ResumeAsync(candidate.Job.Definition.JobId, cancellationToken)
                 : await jobEngine.RunAsync(candidate.Job.Definition.JobId, cancellationToken);
+            PullRequestOperationResult? publicationResult = null;
+
+            if (status.State is JobState.READY_FOR_PR && pullRequestService is not null)
+            {
+                publicationResult = await pullRequestService.PublishIfConfiguredAsync(candidate.Job.Definition.JobId, cancellationToken);
+                status = publicationResult.Status;
+            }
+
+            string summary = publicationResult is { Attempted: true }
+                ? publicationResult.Summary
+                : $"Job reached state {status.State}.";
 
             await notificationSink.NotifyAsync(
                 new NotificationRecord
@@ -110,7 +122,7 @@ public sealed class QueueProcessor(
                     EventType = "job.completed",
                     JobId = candidate.Job.Definition.JobId,
                     State = status.State,
-                    Summary = $"Job reached state {status.State}.",
+                    Summary = summary,
                 },
                 cancellationToken);
 
@@ -119,7 +131,7 @@ public sealed class QueueProcessor(
                 JobId = candidate.Job.Definition.JobId,
                 Disposition = QueueJobDisposition.Started,
                 FinalState = status.State,
-                Summary = $"Job reached state {status.State}.",
+                Summary = summary,
             };
         }
         catch (Exception exception) when (exception is InvalidOperationException or IOException)

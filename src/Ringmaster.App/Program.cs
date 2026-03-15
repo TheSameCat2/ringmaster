@@ -5,6 +5,7 @@ using Ringmaster.App.CommandLine;
 using Ringmaster.Codex;
 using Ringmaster.Core.Jobs;
 using Ringmaster.Git;
+using Ringmaster.GitHub;
 using Ringmaster.Infrastructure.Configuration;
 using Ringmaster.Infrastructure.Persistence;
 using Ringmaster.Infrastructure.Processes;
@@ -45,6 +46,8 @@ builder.Services.AddSingleton<ILeaseManager>(serviceProvider =>
 builder.Services.AddSingleton<IQueueSelector, LocalFilesystemQueueSelector>();
 builder.Services.AddSingleton<GitCli>();
 builder.Services.AddSingleton<GitWorktreeManager>();
+builder.Services.AddSingleton<IPullRequestProvider, GitHubPullRequestProvider>();
+builder.Services.AddSingleton<IPullRequestService, PullRequestService>();
 builder.Services.AddSingleton<RepositoryPreparationService>(serviceProvider =>
 {
     RingmasterApplicationContext applicationContext = serviceProvider.GetRequiredService<RingmasterApplicationContext>();
@@ -62,6 +65,25 @@ builder.Services.AddSingleton<IFailureClassifier, DeterministicFailureClassifier
 builder.Services.AddSingleton(new RepairLoopPolicy());
 builder.Services.AddSingleton<RepairLoopPolicyEvaluator>();
 builder.Services.AddSingleton<PullRequestDraftBuilder>();
+builder.Services.AddSingleton<DoctorService>(serviceProvider =>
+{
+    RingmasterApplicationContext applicationContext = serviceProvider.GetRequiredService<RingmasterApplicationContext>();
+    return new DoctorService(
+        applicationContext.RepositoryRoot,
+        serviceProvider.GetRequiredService<IExternalProcessRunner>(),
+        serviceProvider.GetRequiredService<RingmasterRepoConfigLoader>(),
+        serviceProvider.GetRequiredService<GitWorktreeManager>());
+});
+builder.Services.AddSingleton<CleanupService>(serviceProvider =>
+{
+    RingmasterApplicationContext applicationContext = serviceProvider.GetRequiredService<RingmasterApplicationContext>();
+    return new CleanupService(
+        applicationContext.RepositoryRoot,
+        serviceProvider.GetRequiredService<IJobRepository>(),
+        serviceProvider.GetRequiredService<ILeaseManager>(),
+        serviceProvider.GetRequiredService<GitCli>(),
+        serviceProvider.GetRequiredService<TimeProvider>());
+});
 builder.Services.AddSingleton<ConsoleNotificationSink>();
 builder.Services.AddSingleton<JsonlNotificationSink>(serviceProvider =>
 {
@@ -128,7 +150,16 @@ builder.Services.AddSingleton<IStageRunner>(serviceProvider =>
         serviceProvider.GetRequiredService<PullRequestDraftBuilder>());
 });
 builder.Services.AddSingleton<JobEngine>();
-builder.Services.AddSingleton<QueueProcessor>();
+builder.Services.AddSingleton<QueueProcessor>(serviceProvider =>
+{
+    return new QueueProcessor(
+        serviceProvider.GetRequiredService<IQueueSelector>(),
+        serviceProvider.GetRequiredService<ILeaseManager>(),
+        serviceProvider.GetRequiredService<INotificationSink>(),
+        serviceProvider.GetRequiredService<JobEngine>(),
+        serviceProvider.GetRequiredService<TimeProvider>(),
+        serviceProvider.GetRequiredService<IPullRequestService>());
+});
 builder.Services.AddSingleton<RingmasterCli>();
 
 using IHost host = builder.Build();

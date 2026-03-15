@@ -236,4 +236,41 @@ public sealed class JobSnapshotRebuilderTests
         Assert.Equal(ReviewVerdict.RequestRepair, rebuilt.Review.Verdict);
         Assert.Equal(ReviewRisk.Medium, rebuilt.Review.Risk);
     }
+
+    [Fact]
+    public void RebuildUpdatesPullRequestSnapshotFromPullRequestRecordedEvents()
+    {
+        DateTimeOffset createdAt = new(2026, 3, 15, 16, 45, 0, TimeSpan.Zero);
+        JobDefinition definition = new()
+        {
+            JobId = "job-20260315-7f3c9b2a",
+            Title = "Add retry handling",
+            Description = "Implement bounded retries for retryable failures.",
+            Repo = new JobRepositoryTarget
+            {
+                BaseBranch = "master",
+                VerificationProfile = "default",
+            },
+            CreatedAtUtc = createdAt,
+            CreatedBy = "tester",
+        };
+        JobStatusSnapshot initialStatus = JobStatusSnapshot.CreateInitial(definition);
+        JobSnapshotRebuilder rebuilder = new();
+
+        JobStatusSnapshot rebuilt = rebuilder.Rebuild(
+        [
+            JobEventRecord.CreateJobCreated(1, definition, initialStatus),
+            JobEventRecord.CreatePullRequestRecorded(
+                definition.JobId,
+                PullRequestStatus.Draft,
+                "https://example.test/pr/1",
+                draft: true,
+                summary: "Created a draft PR.",
+                createdAt.AddMinutes(1)) with { Sequence = 2 },
+        ]);
+
+        Assert.Equal(PullRequestStatus.Draft, rebuilt.Pr.Status);
+        Assert.Equal("https://example.test/pr/1", rebuilt.Pr.Url);
+        Assert.True(rebuilt.Pr.Draft);
+    }
 }

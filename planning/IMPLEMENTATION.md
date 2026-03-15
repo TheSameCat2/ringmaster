@@ -420,14 +420,14 @@ Complete the operator-facing toolchain and make results publishable.
 
 ### Work packets
 
-* [ ] **P7.1** Implement GitHub PR provider abstraction.
-* [ ] **P7.2** Implement `gh`-based PR open/check logic.
-* [ ] **P7.3** Implement idempotent PR creation.
-* [ ] **P7.4** Implement `pr open`, `worktree open`, and `cleanup`.
-* [ ] **P7.5** Implement `doctor` checks for git, codex, gh, auth, and writable paths.
-* [ ] **P7.6** Implement retention/cleanup policy for finished worktrees and artifacts.
-* [ ] **P7.7** Add integration tests for provider idempotency and cleanup behavior.
-* [ ] **P7.8** Add release-note quality CLI docs.
+* [x] **P7.1** Implement GitHub PR provider abstraction.
+* [x] **P7.2** Implement `gh`-based PR open/check logic.
+* [x] **P7.3** Implement idempotent PR creation.
+* [x] **P7.4** Implement `pr open`, `worktree open`, and `cleanup`.
+* [x] **P7.5** Implement `doctor` checks for git, codex, gh, auth, and writable paths.
+* [x] **P7.6** Implement retention/cleanup policy for finished worktrees and artifacts.
+* [x] **P7.7** Add integration tests for provider idempotency and cleanup behavior.
+* [x] **P7.8** Add release-note quality CLI docs.
 
 ### Notes
 
@@ -1033,11 +1033,20 @@ Files: tests/Ringmaster.FaultInjectionTests/Ringmaster.FaultInjectionTests.cspro
 Follow-ups: Phase 8 can extend the same fault-injection harness for cross-platform lock semantics and portability checks.
 ```
 
+```text
+2026-03-15 20:02 UTC
+Packet: P7.1-P7.8
+Summary: Added a durable PR publication service and GitHub CLI provider, wired queue and job runs through optional auto-open, implemented doctor/pr open/worktree open/cleanup commands, added retention cleanup for finished worktrees and old run logs, and documented the operator CLI.
+Tests: dotnet build Ringmaster.sln; dotnet test Ringmaster.sln
+Files: src/Ringmaster.Core/Jobs/PullRequestContracts.cs; src/Ringmaster.Core/Jobs/JobEnums.cs; src/Ringmaster.Core/Jobs/JobEventRecord.cs; src/Ringmaster.Core/Jobs/JobSnapshotRebuilder.cs; src/Ringmaster.Core/Jobs/QueueProcessor.cs; src/Ringmaster.Git/GitCli.cs; src/Ringmaster.Git/GitWorktreeManager.cs; src/Ringmaster.Git/CleanupService.cs; src/Ringmaster.GitHub/GitHubPullRequestProvider.cs; src/Ringmaster.GitHub/PullRequestService.cs; src/Ringmaster.App/DoctorService.cs; src/Ringmaster.App/CommandLine/RingmasterCli.cs; src/Ringmaster.App/Program.cs; tests/Ringmaster.Core.Tests/JobSnapshotRebuilderTests.cs; tests/Ringmaster.IntegrationTests/Ringmaster.IntegrationTests.csproj; tests/Ringmaster.IntegrationTests/RingmasterCliCommandTests.cs; tests/Ringmaster.IntegrationTests/PhaseSevenIntegrationTests.cs; docs/CLI.md
+Follow-ups: Phase 8 should harden the same command and cleanup paths for cross-platform process, lock, packaging, and schema-upgrade concerns.
+```
+
 ---
 
 ## Immediate next step
 
-Start **Phase 7, Packet P7.1** and implement the PR provider abstraction so READY_FOR_PR jobs can publish results without pushing GitHub side effects into the stage workers.
+Start **Phase 8, Packet P8.1** and add a cross-platform CI smoke matrix so the Linux-first implementation is continuously validated on macOS and Windows too.
 
 [1]: https://developers.openai.com/codex/cli/?utm_source=chatgpt.com "Codex CLI"
 [2]: https://developers.openai.com/codex/learn/best-practices/?utm_source=chatgpt.com "Best practices"

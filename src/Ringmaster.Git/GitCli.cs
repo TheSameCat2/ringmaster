@@ -2,7 +2,7 @@ using Ringmaster.Infrastructure.Processes;
 
 namespace Ringmaster.Git;
 
-public sealed class GitCli(ExternalProcessRunner processRunner)
+public sealed class GitCli(IExternalProcessRunner processRunner)
 {
     public async Task<string> ResolveCommitAsync(string repositoryRoot, string reference, CancellationToken cancellationToken)
     {
@@ -114,6 +114,47 @@ public sealed class GitCli(ExternalProcessRunner processRunner)
         arguments.Add(createBranch ? baseReference : branchName);
 
         await EnsureSuccessAsync(repositoryRoot, arguments, TimeSpan.FromMinutes(2), cancellationToken);
+    }
+
+    public Task PushBranchAsync(string workingDirectory, string branchName, CancellationToken cancellationToken)
+    {
+        return EnsureSuccessAsync(
+            workingDirectory,
+            ["push", "-u", "origin", branchName],
+            TimeSpan.FromMinutes(2),
+            cancellationToken);
+    }
+
+    public Task RemoveWorktreeAsync(
+        string repositoryRoot,
+        string worktreePath,
+        bool force,
+        bool forceIfLocked,
+        CancellationToken cancellationToken)
+    {
+        List<string> arguments = ["worktree", "remove"];
+        if (force)
+        {
+            arguments.Add("--force");
+        }
+
+        if (forceIfLocked)
+        {
+            arguments.Add("--force");
+        }
+
+        arguments.Add(worktreePath);
+
+        return EnsureSuccessAsync(repositoryRoot, arguments, TimeSpan.FromMinutes(2), cancellationToken);
+    }
+
+    public Task PruneWorktreesAsync(string repositoryRoot, CancellationToken cancellationToken)
+    {
+        return EnsureSuccessAsync(
+            repositoryRoot,
+            ["worktree", "prune"],
+            TimeSpan.FromMinutes(1),
+            cancellationToken);
     }
 
     public Task RepairWorktreeAsync(string repositoryRoot, string worktreePath, CancellationToken cancellationToken)

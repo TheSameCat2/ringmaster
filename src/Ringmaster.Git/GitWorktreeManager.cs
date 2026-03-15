@@ -92,12 +92,17 @@ public sealed class GitWorktreeManager(GitCli gitCli)
 
     public string CreateWorktreePath(string repositoryRoot, string jobId)
     {
+        return Path.Combine(GetWorktreeRoot(repositoryRoot), $"j-{ExtractShortId(jobId)}");
+    }
+
+    public string GetWorktreeRoot(string repositoryRoot)
+    {
         string repoRoot = Path.GetFullPath(repositoryRoot);
         string repoName = new DirectoryInfo(repoRoot).Name;
         string repoParent = Directory.GetParent(repoRoot)?.FullName
             ?? throw new InvalidOperationException($"Repository root '{repoRoot}' does not have a parent directory.");
 
-        return Path.Combine(repoParent, ".ringmaster-worktrees", repoName, $"j-{ExtractShortId(jobId)}");
+        return Path.Combine(repoParent, ".ringmaster-worktrees", repoName);
     }
 
     private async Task<IReadOnlyList<GitWorktreeInfo>> TryListWorktreesAsync(
