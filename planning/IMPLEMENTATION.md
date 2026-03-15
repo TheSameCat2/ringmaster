@@ -152,13 +152,13 @@ Create a clean repository skeleton that Codex can work in safely and repeatedly.
 ### Work packets
 
 * [x] **P0.1** Create the .NET solution and project layout.
-* [ ] **P0.2** Add `global.json`, `Directory.Build.props`, `.editorconfig`, and `.gitattributes`.
-* [ ] **P0.3** Add initial package references and project references.
-* [ ] **P0.4** Add root `AGENTS.md` with explicit instruction to read `planning/PRODUCT.md` and `planning/IMPLEMENTATION.md` first.
-* [ ] **P0.5** Add `.codex/config.toml` with minimal project defaults.
-* [ ] **P0.6** Add `scripts/dev/bootstrap-arch.sh`, `scripts/dev/smoke.sh`, and `scripts/dev/run-phase.sh` for local convenience only.
-* [ ] **P0.7** Add placeholder test projects and verify solution build/test.
-* [ ] **P0.8** Add a minimal `ringmaster --help` command shell.
+* [x] **P0.2** Add `global.json`, `Directory.Build.props`, `.editorconfig`, and `.gitattributes`.
+* [x] **P0.3** Add initial package references and project references.
+* [x] **P0.4** Add root `AGENTS.md` with explicit instruction to read `planning/PRODUCT.md` and `planning/IMPLEMENTATION.md` first.
+* [x] **P0.5** Add `.codex/config.toml` with minimal project defaults.
+* [x] **P0.6** Add `scripts/dev/bootstrap-arch.sh`, `scripts/dev/smoke.sh`, and `scripts/dev/run-phase.sh` for local convenience only.
+* [x] **P0.7** Add placeholder test projects and verify solution build/test.
+* [x] **P0.8** Add a minimal `ringmaster --help` command shell.
 
 ### Notes
 
@@ -655,11 +655,74 @@ Files: planning/IMPLEMENTATION.md; planning/PRODUCT.md
 Follow-ups: Apply the validation contract to every future packet, starting with P0.2.
 ```
 
+```text
+2026-03-15 16:45 UTC
+Packet: P0.2
+Summary: Added global SDK, build, editor, and line-ending configuration at the repo root to keep the solution deterministic across machines.
+Tests: dotnet build Ringmaster.sln; dotnet test Ringmaster.sln
+Files: global.json; Directory.Build.props; .editorconfig; .gitattributes
+Follow-ups: P0.3 wires the initial package graph and project references on top of these shared defaults.
+```
+
+```text
+2026-03-15 16:45 UTC
+Packet: P0.3
+Summary: Added the initial package references for the CLI host and wired the first project-reference graph between App, Core, Abstractions, Infrastructure, Git, Codex, GitHub, and the test projects.
+Tests: dotnet build Ringmaster.sln; dotnet test Ringmaster.sln
+Files: src/Ringmaster.App/Ringmaster.App.csproj; src/Ringmaster.Abstractions/Ringmaster.Abstractions.csproj; src/Ringmaster.Codex/Ringmaster.Codex.csproj; src/Ringmaster.Core/Ringmaster.Core.csproj; src/Ringmaster.Git/Ringmaster.Git.csproj; src/Ringmaster.GitHub/Ringmaster.GitHub.csproj; src/Ringmaster.Infrastructure/Ringmaster.Infrastructure.csproj; tests/Ringmaster.Core.Tests/Ringmaster.Core.Tests.csproj; tests/Ringmaster.IntegrationTests/Ringmaster.IntegrationTests.csproj; tests/Ringmaster.FaultInjectionTests/Ringmaster.FaultInjectionTests.csproj; Ringmaster.sln
+Follow-ups: P0.8 uses the App package set to expose the first real command shell.
+```
+
+```text
+2026-03-15 16:45 UTC
+Packet: P0.4
+Summary: Added a short repo-specific startup section to AGENTS.md that points every session at the planning docs and records the canonical build, test, help-smoke, and script-syntax commands.
+Tests: dotnet build Ringmaster.sln; dotnet test Ringmaster.sln
+Files: AGENTS.md
+Follow-ups: Keep the root guidance concise as later phases add command coverage.
+```
+
+```text
+2026-03-15 16:45 UTC
+Packet: P0.5
+Summary: Added a minimal project-scoped Codex config with repo-local defaults for model, sandbox mode, reasoning effort, and multi-agent support.
+Tests: codex --help >/dev/null; codex exec --help >/dev/null
+Files: .codex/config.toml
+Follow-ups: Expand only if a later phase needs additional repo-local Codex defaults.
+```
+
+```text
+2026-03-15 16:45 UTC
+Packet: P0.6
+Summary: Added Arch bootstrap, local smoke, and packet-runner shell wrappers for repeatable development workflows without moving product behavior out of .NET.
+Tests: bash -n scripts/dev/bootstrap-arch.sh; bash -n scripts/dev/smoke.sh; bash -n scripts/dev/run-phase.sh; scripts/dev/bootstrap-arch.sh; scripts/dev/smoke.sh
+Files: scripts/dev/bootstrap-arch.sh; scripts/dev/smoke.sh; scripts/dev/run-phase.sh; samples/sample-repo/README.md
+Follow-ups: Later phases can extend these wrappers, but they must remain developer conveniences only.
+```
+
+```text
+2026-03-15 16:45 UTC
+Packet: P0.7
+Summary: Added the three planned test projects, connected them to the solution, and introduced the first core and integration tests plus a placeholder fault-injection test to keep the suite green from the start.
+Tests: dotnet test Ringmaster.sln; scripts/dev/smoke.sh
+Files: tests/Ringmaster.Core.Tests/; tests/Ringmaster.IntegrationTests/; tests/Ringmaster.FaultInjectionTests/; Ringmaster.sln
+Follow-ups: Replace placeholder fault-injection coverage with real crash/recovery tests in later phases.
+```
+
+```text
+2026-03-15 16:45 UTC
+Packet: P0.8
+Summary: Replaced the template app with a minimal Generic Host plus System.CommandLine shell that exposes the planned top-level command structure and a working ringmaster help experience.
+Tests: dotnet build Ringmaster.sln; dotnet test Ringmaster.sln; ./src/Ringmaster.App/bin/Debug/net10.0/ringmaster --help; scripts/dev/smoke.sh
+Files: src/Ringmaster.App/Program.cs; src/Ringmaster.App/CommandLine/RingmasterCli.cs; src/Ringmaster.Core/ProductInfo.cs
+Follow-ups: Start Phase 1 with the durable job-state and persistence models that will back these CLI surfaces.
+```
+
 ---
 
 ## Immediate next step
 
-Continue with **Phase 0, Packet P0.2** to add the shared SDK/build/editor settings before wiring package references or command behavior.
+Start **Phase 1, Packet P1.1** and define the core job/state enums and records that the persistence layer will serialize.
 
 [1]: https://developers.openai.com/codex/cli/?utm_source=chatgpt.com "Codex CLI"
 [2]: https://developers.openai.com/codex/learn/best-practices/?utm_source=chatgpt.com "Best practices"

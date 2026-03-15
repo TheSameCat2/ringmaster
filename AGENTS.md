@@ -1,5 +1,21 @@
 # AGENTS.md
 
+## Session Start
+- Read `planning/PRODUCT.md` and `planning/IMPLEMENTATION.md` before changing code.
+- Implement the current packet only unless the user explicitly broadens scope.
+- End each packet with repeatable validation and record the exact commands in `planning/IMPLEMENTATION.md`.
+
+## Build And Validation
+- Build: `dotnet build Ringmaster.sln`
+- Tests: `dotnet test Ringmaster.sln`
+- CLI help smoke: `./src/Ringmaster.App/bin/Debug/net10.0/ringmaster --help`
+- Script syntax: `bash -n scripts/dev/*.sh`
+
+## Architecture Guardrails
+- Keep product runtime behavior in C#, not shell scripts.
+- Invoke external tools with `ProcessStartInfo` argument lists rather than shell command strings.
+- Persist durable job state to disk; do not rely on hidden in-memory state.
+
 ## Workspace Layout
 - Root worktree checkout is `master/`.
 - All branch worktrees must be created as sibling directories next to `master/`.
