@@ -1092,3 +1092,12 @@ All planned v1 implementation packets are complete. Pull from the deferred list 
 [6]: https://developers.openai.com/codex/cli/reference/?utm_source=chatgpt.com "Command line options"
 [7]: https://developers.openai.com/codex/noninteractive/?utm_source=chatgpt.com "Non-interactive mode"
 [8]: https://developers.openai.com/codex/guides/agents-md/?utm_source=chatgpt.com "Custom instructions with AGENTS.md"
+
+```text
+2026-03-15 22:05 UTC
+Packet: Security hotfix - verification command safety policy
+Summary: Added validation that only approved verification command shapes are executed by default, enforced the policy in PREPARING and VERIFYING, and added tests for the new policy with an explicit integration-test override for scripted fixtures.
+Tests: dotnet build Ringmaster.sln (fails: dotnet not installed in environment); dotnet test Ringmaster.sln (fails: dotnet not installed in environment); ./src/Ringmaster.App/bin/Debug/net10.0/ringmaster --help (fails: binary not built); bash -n scripts/dev/*.sh; git diff --check
+Files: src/Ringmaster.Core/Configuration/VerificationCommandSafetyPolicy.cs; src/Ringmaster.Git/RepositoryPreparationService.cs; src/Ringmaster.Git/VerifyingStageRunner.cs; tests/Ringmaster.Core.Tests/VerificationCommandSafetyPolicyTests.cs; tests/Ringmaster.IntegrationTests/PhaseFiveIntegrationTests.cs
+Follow-ups: Consider introducing an operator-managed trusted-repository setting instead of an environment variable override for advanced verification scenarios.
+```

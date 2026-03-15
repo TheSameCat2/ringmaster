@@ -70,6 +70,11 @@ public sealed class VerifyingStageRunner(
         for (int index = 0; index < profile.Commands.Count; index++)
         {
             VerificationCommandDefinition command = profile.Commands[index];
+            if (!VerificationCommandSafetyPolicy.TryValidate(command, out string reason))
+            {
+                return BlockedForMissingConfig(reason);
+            }
+
             string baseName = $"{index + 1:D2}-{SanitizeFileName(command.Name)}";
             string stdoutPath = Path.Combine(context.RunDirectoryPath, $"{baseName}.log");
             string stderrPath = Path.Combine(context.RunDirectoryPath, $"{baseName}.stderr.log");

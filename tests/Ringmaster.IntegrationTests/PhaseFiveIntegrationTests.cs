@@ -12,6 +12,11 @@ namespace Ringmaster.IntegrationTests;
 
 public sealed class PhaseFiveIntegrationTests
 {
+    static PhaseFiveIntegrationTests()
+    {
+        Environment.SetEnvironmentVariable(VerificationCommandSafetyPolicy.UnsafeOverrideEnvironmentVariableName, "1");
+    }
+
     [Fact]
     public async Task CompileFailureTransitionsThroughRepairAndReachesReadyForPr()
     {
