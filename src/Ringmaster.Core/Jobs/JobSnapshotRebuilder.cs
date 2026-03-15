@@ -221,6 +221,7 @@ public sealed class JobSnapshotRebuilder
         return snapshot with
         {
             State = JobState.FAILED,
+            Blocker = null,
             LastFailure = BuildFailureSnapshot(snapshot.LastFailure, jobEvent) ?? snapshot.LastFailure,
             Execution = JobExecutionSnapshot.Idle(),
             UpdatedAtUtc = jobEvent.UpdatedAtUtc ?? jobEvent.TimestampUtc,

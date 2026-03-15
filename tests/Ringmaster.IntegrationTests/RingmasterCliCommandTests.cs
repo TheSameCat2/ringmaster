@@ -175,7 +175,7 @@ public sealed class RingmasterCliCommandTests
 
         int exitCode = cli.CreateRootCommand().Parse(["doctor", "--json"]).Invoke();
 
-        Assert.Equal(1, exitCode);
+        Assert.Equal(OperatorExitCodes.ToolOrConfigError, exitCode);
         Assert.Contains("\"name\": \"repo config validity\"", console.Output, StringComparison.Ordinal);
         Assert.Contains("\"succeeded\": false", console.Output, StringComparison.Ordinal);
     }
@@ -235,11 +235,25 @@ public sealed class RingmasterCliCommandTests
             new WebhookPlaceholderNotificationSink(),
             jobEngine,
             timeProvider);
+        IPullRequestService effectivePullRequestService = pullRequestService ?? new DelegatePullRequestService(effectiveRepository);
         DoctorService doctorService = new(
             repositoryRoot,
             effectiveProcessRunner,
             new RingmasterRepoConfigLoader(),
             new GitWorktreeManager(gitCli));
+        RepositoryInitializationService initializationService = new(
+            repositoryRoot,
+            new AtomicFileWriter());
+        JobOperatorService jobOperatorService = new(
+            effectiveRepository,
+            jobEngine,
+            effectivePullRequestService,
+            new RingmasterStateMachine(),
+            new AtomicFileWriter(),
+            timeProvider,
+            new RingmasterApplicationContext(repositoryRoot, "tester"));
+        RunLogService runLogService = new(effectiveRepository);
+        StatusDisplayService statusDisplayService = new(effectiveRepository, timeProvider);
         CleanupService cleanupService = new(
             repositoryRoot,
             effectiveRepository,
@@ -252,8 +266,12 @@ public sealed class RingmasterCliCommandTests
             effectiveRepository,
             jobEngine,
             queueProcessor,
-            pullRequestService ?? new DelegatePullRequestService(effectiveRepository),
+            effectivePullRequestService,
             doctorService,
+            initializationService,
+            jobOperatorService,
+            runLogService,
+            statusDisplayService,
             cleanupService,
             new RingmasterApplicationContext(repositoryRoot, "tester"));
     }

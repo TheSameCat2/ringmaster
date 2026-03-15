@@ -483,13 +483,13 @@ Close the remaining product-level CLI gaps that were not covered by the original
 
 ### Work packets
 
-* [ ] **P9.1** Implement `ringmaster init` runtime/config scaffolding.
-* [ ] **P9.2** Implement `ringmaster job resume` for blocked, abandoned, and ready-for-pr jobs.
-* [ ] **P9.3** Implement `ringmaster job unblock` with durable human-input storage and resume.
-* [ ] **P9.4** Implement `ringmaster job cancel` with explicit terminal semantics.
-* [ ] **P9.5** Implement `ringmaster logs` for run selection and tail/follow behavior.
-* [ ] **P9.6** Implement explicit operator-facing exit codes and wire them across commands.
-* [ ] **P9.7** Add integration coverage for the remaining operator commands and exit codes.
+* [x] **P9.1** Implement `ringmaster init` runtime/config scaffolding.
+* [x] **P9.2** Implement `ringmaster job resume` for blocked, abandoned, and ready-for-pr jobs.
+* [x] **P9.3** Implement `ringmaster job unblock` with durable human-input storage and resume.
+* [x] **P9.4** Implement `ringmaster job cancel` with explicit terminal semantics.
+* [x] **P9.5** Implement `ringmaster logs` for run selection and tail/follow behavior.
+* [x] **P9.6** Implement explicit operator-facing exit codes and wire them across commands.
+* [x] **P9.7** Add integration coverage for the remaining operator commands and exit codes.
 
 ### Notes
 
@@ -1079,11 +1079,20 @@ Files: .github/workflows/ci.yml; README.md; samples/sample-repo/README.md; sampl
 Follow-ups: Phase 9 should finish the remaining documented CLI commands, human-intervention flows, and operator exit-code contracts.
 ```
 
+```text
+2026-03-15 21:07 UTC
+Packet: P9.1-P9.7
+Summary: Completed the remaining operator surface by implementing init, resume, unblock, cancel, logs, explicit exit-code mapping, status watch, and queue-run watch compatibility; added durable NOTES.md operator entries plus integration coverage for the new control paths.
+Tests: git diff --check; dotnet build Ringmaster.sln; dotnet test Ringmaster.sln; dotnet pack src/Ringmaster.App/Ringmaster.App.csproj -c Release
+Files: README.md; docs/CLI.md; planning/PRODUCT.md; src/Ringmaster.App/CommandLine/RingmasterCli.cs; src/Ringmaster.App/JobOperatorService.cs; src/Ringmaster.App/OperatorExitCodes.cs; src/Ringmaster.App/Program.cs; src/Ringmaster.App/RepositoryInitializationService.cs; src/Ringmaster.App/RunLogService.cs; src/Ringmaster.App/StatusDisplayService.cs; src/Ringmaster.Core/Jobs/JobSnapshotRebuilder.cs; tests/Ringmaster.Core.Tests/JobSnapshotRebuilderTests.cs; tests/Ringmaster.IntegrationTests/PhaseNineIntegrationTests.cs; tests/Ringmaster.IntegrationTests/RingmasterCliCommandTests.cs
+Follow-ups: v1 implementation packets are complete; any further work should come from the deferred list or new user-prioritized scope rather than hidden CLI gaps.
+```
+
 ---
 
 ## Immediate next step
 
-Start **Phase 9, Packet P9.1** and implement `ringmaster init` plus the remaining operator-command contracts that are documented in PRODUCT.md but still incomplete in the CLI.
+All planned v1 implementation packets are complete. Pull from the deferred list or new user-prioritized scope for subsequent work.
 
 [1]: https://developers.openai.com/codex/cli/?utm_source=chatgpt.com "Codex CLI"
 [2]: https://developers.openai.com/codex/learn/best-practices/?utm_source=chatgpt.com "Best practices"

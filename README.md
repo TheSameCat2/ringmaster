@@ -35,10 +35,11 @@ dotnet tool update --global Ringmaster.Tool --add-source artifacts/packages
 ## Quick start
 
 1. Ensure `git`, `codex`, and `gh` are installed and authenticated.
-2. Add a repository config at `ringmaster.json`.
-3. Run `ringmaster doctor`.
-4. Create work with `ringmaster job create`.
-5. Execute with `ringmaster job run` or `ringmaster queue run`.
+2. Run `ringmaster init --base-branch master`.
+3. Review or edit the generated `ringmaster.json`.
+4. Run `ringmaster doctor`.
+5. Create work with `ringmaster job create`.
+6. Execute with `ringmaster job run`, `ringmaster job resume`, or `ringmaster queue run --watch`.
 
 ## Minimal config
 
@@ -73,10 +74,16 @@ The smallest useful config looks like this:
 
 ## Operator commands
 
+- `ringmaster init`
 - `ringmaster doctor`
 - `ringmaster job create`
 - `ringmaster job show`
 - `ringmaster job run`
+- `ringmaster job resume`
+- `ringmaster job unblock`
+- `ringmaster job cancel`
+- `ringmaster status`
+- `ringmaster logs`
 - `ringmaster queue once`
 - `ringmaster queue run`
 - `ringmaster pr open`

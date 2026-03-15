@@ -1256,7 +1256,7 @@ ringmaster cleanup
 
 ### `ringmaster init`
 
-Creates local runtime layout and optional repo config scaffold.
+Creates local runtime layout, ensures `.ringmaster/` is ignored by git, and optionally scaffolds repo config.
 
 Example:
 
@@ -1311,6 +1311,10 @@ Example:
 ringmaster job unblock job-20260315-7f3c9b2a \
   --message "Use in-memory retry only; no durable scheduler needed."
 ```
+
+### `ringmaster job cancel <jobId>`
+
+Cancels a queued, blocked, or ready-for-pr job by recording an operator-cancelled terminal failure.
 
 ### `ringmaster queue run`
 

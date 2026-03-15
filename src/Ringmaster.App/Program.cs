@@ -74,6 +74,16 @@ builder.Services.AddSingleton<DoctorService>(serviceProvider =>
         serviceProvider.GetRequiredService<RingmasterRepoConfigLoader>(),
         serviceProvider.GetRequiredService<GitWorktreeManager>());
 });
+builder.Services.AddSingleton<RepositoryInitializationService>(serviceProvider =>
+{
+    RingmasterApplicationContext applicationContext = serviceProvider.GetRequiredService<RingmasterApplicationContext>();
+    return new RepositoryInitializationService(
+        applicationContext.RepositoryRoot,
+        serviceProvider.GetRequiredService<AtomicFileWriter>());
+});
+builder.Services.AddSingleton<JobOperatorService>();
+builder.Services.AddSingleton<RunLogService>();
+builder.Services.AddSingleton<StatusDisplayService>();
 builder.Services.AddSingleton<CleanupService>(serviceProvider =>
 {
     RingmasterApplicationContext applicationContext = serviceProvider.GetRequiredService<RingmasterApplicationContext>();

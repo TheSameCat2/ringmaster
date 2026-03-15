@@ -273,4 +273,49 @@ public sealed class JobSnapshotRebuilderTests
         Assert.Equal("https://example.test/pr/1", rebuilt.Pr.Url);
         Assert.True(rebuilt.Pr.Draft);
     }
+
+    [Fact]
+    public void RebuildClearsBlockersWhenTheJobFails()
+    {
+        DateTimeOffset createdAt = new(2026, 3, 15, 16, 45, 0, TimeSpan.Zero);
+        JobDefinition definition = new()
+        {
+            JobId = "job-20260315-7f3c9b2a",
+            Title = "Add retry handling",
+            Description = "Implement bounded retries for retryable failures.",
+            Repo = new JobRepositoryTarget
+            {
+                BaseBranch = "master",
+                VerificationProfile = "default",
+            },
+            CreatedAtUtc = createdAt,
+            CreatedBy = "tester",
+        };
+        JobStatusSnapshot initialStatus = JobStatusSnapshot.CreateInitial(definition);
+        JobSnapshotRebuilder rebuilder = new();
+
+        JobStatusSnapshot rebuilt = rebuilder.Rebuild(
+        [
+            JobEventRecord.CreateJobCreated(1, definition, initialStatus),
+            JobEventRecord.CreateBlocked(
+                definition.JobId,
+                new BlockerInfo
+                {
+                    ReasonCode = BlockerReasonCode.MissingConfiguration,
+                    Summary = "Missing repo config.",
+                    Questions = ["Create ringmaster.json?"],
+                    ResumeState = JobState.VERIFYING,
+                },
+                createdAt.AddMinutes(1)) with { Sequence = 2 },
+            JobEventRecord.CreateFailed(
+                definition.JobId,
+                FailureCategory.HumanEscalationRequired,
+                "operator:cancelled",
+                "Canceled by operator.",
+                createdAt.AddMinutes(2)) with { Sequence = 3 },
+        ]);
+
+        Assert.Equal(JobState.FAILED, rebuilt.State);
+        Assert.Null(rebuilt.Blocker);
+    }
 }

@@ -13,6 +13,10 @@ public sealed class RingmasterCli(
     QueueProcessor queueProcessor,
     IPullRequestService pullRequestService,
     DoctorService doctorService,
+    RepositoryInitializationService repositoryInitializationService,
+    JobOperatorService jobOperatorService,
+    RunLogService runLogService,
+    StatusDisplayService statusDisplayService,
     CleanupService cleanupService,
     RingmasterApplicationContext applicationContext)
 {
@@ -20,12 +24,12 @@ public sealed class RingmasterCli(
     {
         RootCommand rootCommand = new("Durable Codex orchestration for git-backed engineering work.");
 
-        rootCommand.Subcommands.Add(CreatePlaceholderCommand("init", "Initialize local Ringmaster runtime layout."));
+        rootCommand.Subcommands.Add(CreateInitCommand());
         rootCommand.Subcommands.Add(CreateDoctorCommand());
         rootCommand.Subcommands.Add(CreateJobCommand());
         rootCommand.Subcommands.Add(CreateQueueCommand());
         rootCommand.Subcommands.Add(CreateStatusCommand());
-        rootCommand.Subcommands.Add(CreatePlaceholderCommand("logs", "Inspect stored run logs."));
+        rootCommand.Subcommands.Add(CreateLogsCommand());
         rootCommand.Subcommands.Add(CreatePrCommand());
         rootCommand.Subcommands.Add(CreateWorktreeCommand());
         rootCommand.Subcommands.Add(CreateCleanupCommand());
@@ -52,7 +56,7 @@ public sealed class RingmasterCli(
             if (parseResult.GetValue(jsonOption))
             {
                 WriteJson(report);
-                return report.Succeeded ? 0 : 1;
+                return OperatorExitCodes.FromDoctorReport(report);
             }
 
             foreach (DoctorCheckResult check in report.Checks)
@@ -61,7 +65,7 @@ public sealed class RingmasterCli(
                 console.MarkupLine($"{statusText} {Markup.Escape(check.Name)}: {Markup.Escape(check.Detail)}");
             }
 
-            return report.Succeeded ? 0 : 1;
+            return OperatorExitCodes.FromDoctorReport(report);
         });
 
         return command;
@@ -73,9 +77,9 @@ public sealed class RingmasterCli(
         command.Subcommands.Add(CreateJobCreateCommand());
         command.Subcommands.Add(CreateJobShowCommand());
         command.Subcommands.Add(CreateJobRunCommand());
-        command.Subcommands.Add(CreatePlaceholderCommand("resume", "Resume a blocked or interrupted job."));
-        command.Subcommands.Add(CreatePlaceholderCommand("unblock", "Store human input and resume a blocked job."));
-        command.Subcommands.Add(CreatePlaceholderCommand("cancel", "Cancel a queued or blocked job."));
+        command.Subcommands.Add(CreateJobResumeCommand());
+        command.Subcommands.Add(CreateJobUnblockCommand());
+        command.Subcommands.Add(CreateJobCancelCommand());
         return command;
     }
 
@@ -101,10 +105,60 @@ public sealed class RingmasterCli(
         return command;
     }
 
-    private Command CreatePlaceholderCommand(string name, string description)
+    private Command CreateInitCommand()
     {
-        Command command = new(name, description);
-        command.SetAction(_ => console.MarkupLine($"[yellow]{name}[/] is not implemented yet."));
+        Command command = new("init", "Initialize local Ringmaster runtime layout.");
+        Option<string> baseBranchOption = new("--base-branch") { Description = "Repository base branch.", DefaultValueFactory = _ => "master" };
+        Option<string> prProviderOption = new("--pr-provider") { Description = "Pull request provider. Only 'github' is supported.", DefaultValueFactory = _ => "github" };
+        Option<bool> jsonOption = new("--json") { Description = "Emit JSON output." };
+
+        command.Options.Add(baseBranchOption);
+        command.Options.Add(prProviderOption);
+        command.Options.Add(jsonOption);
+
+        command.SetAction(async (parseResult, cancellationToken) =>
+        {
+            try
+            {
+                RepositoryInitializationResult result = await repositoryInitializationService.InitializeAsync(
+                    new RepositoryInitializationOptions
+                    {
+                        BaseBranch = parseResult.GetValue(baseBranchOption) ?? "master",
+                        PullRequestProvider = parseResult.GetValue(prProviderOption) ?? "github",
+                    },
+                    cancellationToken);
+
+                if (parseResult.GetValue(jsonOption))
+                {
+                    WriteJson(result);
+                    return OperatorExitCodes.Success;
+                }
+
+                console.MarkupLine($"[green]Initialized Ringmaster runtime[/] at [grey]{Markup.Escape(result.RuntimeRoot)}[/]");
+                console.MarkupLine(result.ConfigCreated
+                    ? $"Config: [green]created[/] [grey]{Markup.Escape(result.ConfigPath)}[/]"
+                    : $"Config: [yellow]existing[/] [grey]{Markup.Escape(result.ConfigPath)}[/]");
+                console.MarkupLine(result.GitIgnoreUpdated
+                    ? "Git ignore: [green]updated[/] with `.ringmaster/`"
+                    : "Git ignore: [blue]already covered[/]");
+
+                if (result.ConfigCreated && result.VerificationCommandsScaffolded && result.SolutionPath is not null)
+                {
+                    console.MarkupLine($"Verification profile: scaffolded from [grey]{Markup.Escape(Path.GetFileName(result.SolutionPath))}[/]");
+                }
+                else if (result.ConfigCreated)
+                {
+                    console.MarkupLine("Verification profile: [yellow]created without commands; edit ringmaster.json before running jobs.[/]");
+                }
+
+                return OperatorExitCodes.Success;
+            }
+            catch (Exception exception) when (IsOperatorError(exception))
+            {
+                return WriteOperatorError(exception);
+            }
+        });
+
         return command;
     }
 
@@ -186,13 +240,13 @@ public sealed class RingmasterCli(
                     storedJob.Definition.Title,
                 });
 
-                return 0;
+                return OperatorExitCodes.Success;
             }
 
             console.MarkupLine($"[green]Created job[/] [bold]{Markup.Escape(storedJob.Definition.JobId)}[/]");
             console.MarkupLine($"Path: [grey]{Markup.Escape(storedJob.JobDirectoryPath)}[/]");
             console.MarkupLine($"State: [blue]{storedJob.Status.State}[/]");
-            return 0;
+            return OperatorExitCodes.Success;
         });
 
         return command;
@@ -216,13 +270,13 @@ public sealed class RingmasterCli(
             if (storedJob is null)
             {
                 console.MarkupLine($"[red]Job not found:[/] {Markup.Escape(jobId)}");
-                return 1;
+                return OperatorExitCodes.ToolOrConfigError;
             }
 
             if (parseResult.GetValue(jsonOption))
             {
                 WriteJson(storedJob);
-                return 0;
+                return OperatorExitCodes.FromJobStatus(storedJob.Status);
             }
 
             Table table = new();
@@ -241,7 +295,7 @@ public sealed class RingmasterCli(
             console.Write(table);
             console.WriteLine();
             console.MarkupLine(storedJob.Definition.Description);
-            return 0;
+            return OperatorExitCodes.FromJobStatus(storedJob.Status);
         });
 
         return command;
@@ -273,16 +327,15 @@ public sealed class RingmasterCli(
                 if (parseResult.GetValue(jsonOption))
                 {
                     WriteJson(status);
-                    return 0;
+                    return OperatorExitCodes.FromJobStatus(status);
                 }
 
                 console.MarkupLine($"[green]Job finished in state[/] [blue]{status.State}[/]");
-                return 0;
+                return OperatorExitCodes.FromJobStatus(status);
             }
-            catch (InvalidOperationException exception)
+            catch (Exception exception) when (IsOperatorError(exception))
             {
-                console.MarkupLine($"[red]{Markup.Escape(exception.Message)}[/]");
-                return 1;
+                return WriteOperatorError(exception);
             }
         });
 
@@ -294,14 +347,51 @@ public sealed class RingmasterCli(
         Command command = new("status", "Show job or queue status.");
         Option<string?> jobIdOption = new("--job-id") { Description = "Show a single job status." };
         Option<bool> jsonOption = new("--json") { Description = "Emit JSON output." };
+        Option<bool> watchOption = new("--watch") { Description = "Refresh the human-readable status view until canceled." };
 
         command.Options.Add(jobIdOption);
         command.Options.Add(jsonOption);
+        command.Options.Add(watchOption);
+
+        command.Validators.Add(result =>
+        {
+            if (result.GetValue(jsonOption) && result.GetValue(watchOption))
+            {
+                result.AddError("--watch cannot be combined with --json.");
+            }
+        });
 
         command.SetAction(async (parseResult, cancellationToken) =>
         {
             string? jobId = parseResult.GetValue(jobIdOption);
             bool emitJson = parseResult.GetValue(jsonOption);
+            bool watch = parseResult.GetValue(watchOption);
+
+            if (watch)
+            {
+                try
+                {
+                    await statusDisplayService.WatchAsync(
+                        jobId,
+                        TimeSpan.FromSeconds(1),
+                        (snapshot, _) =>
+                        {
+                            RenderStatusDashboard(snapshot);
+                            return Task.CompletedTask;
+                        },
+                        cancellationToken);
+                    return OperatorExitCodes.Success;
+                }
+                catch (OperationCanceledException)
+                {
+                    IReadOnlyList<StatusDisplayItem> finalSnapshot = await statusDisplayService.GetSnapshotAsync(jobId, CancellationToken.None);
+                    return OperatorExitCodes.FromJobStates(finalSnapshot.Select(item => item.State));
+                }
+                catch (Exception exception) when (IsOperatorError(exception))
+                {
+                    return WriteOperatorError(exception);
+                }
+            }
 
             if (!string.IsNullOrWhiteSpace(jobId))
             {
@@ -309,30 +399,30 @@ public sealed class RingmasterCli(
                 if (storedJob is null)
                 {
                     console.MarkupLine($"[red]Job not found:[/] {Markup.Escape(jobId)}");
-                    return 1;
+                    return OperatorExitCodes.ToolOrConfigError;
                 }
 
                 if (emitJson)
                 {
                     WriteJson(storedJob.Status);
-                    return 0;
+                    return OperatorExitCodes.FromJobStatus(storedJob.Status);
                 }
 
                 console.MarkupLine($"[bold]{Markup.Escape(storedJob.Status.JobId)}[/] [blue]{storedJob.Status.State}[/] {Markup.Escape(storedJob.Status.Title)}");
-                return 0;
+                return OperatorExitCodes.FromJobStatus(storedJob.Status);
             }
 
             IReadOnlyList<JobStatusListItem> jobs = await jobRepository.ListAsync(cancellationToken);
             if (emitJson)
             {
                 WriteJson(jobs);
-                return 0;
+                return OperatorExitCodes.FromJobStates(jobs.Select(job => job.State));
             }
 
             if (jobs.Count == 0)
             {
                 console.MarkupLine("[yellow]No jobs found.[/]");
-                return 0;
+                return OperatorExitCodes.Success;
             }
 
             Table table = new();
@@ -353,7 +443,74 @@ public sealed class RingmasterCli(
             }
 
             console.Write(table);
-            return 0;
+            return OperatorExitCodes.FromJobStates(jobs.Select(job => job.State));
+        });
+
+        return command;
+    }
+
+    private Command CreateLogsCommand()
+    {
+        Command command = new("logs", "Inspect stored run logs.");
+        Argument<string> jobIdArgument = new("job-id") { Description = "Job identifier." };
+        Option<string?> runOption = new("--run") { Description = "Specific run identifier to inspect." };
+        Option<bool> followOption = new("--follow") { Description = "Follow the selected log until canceled." };
+        Option<bool> jsonOption = new("--json") { Description = "Emit JSON output." };
+
+        command.Arguments.Add(jobIdArgument);
+        command.Options.Add(runOption);
+        command.Options.Add(followOption);
+        command.Options.Add(jsonOption);
+
+        command.SetAction(async (parseResult, cancellationToken) =>
+        {
+            string jobId = parseResult.GetValue(jobIdArgument)
+                ?? throw new InvalidOperationException("The required job identifier was not provided.");
+
+            try
+            {
+                RunLogSelection selection = await runLogService.SelectAsync(
+                    jobId,
+                    parseResult.GetValue(runOption),
+                    cancellationToken);
+
+                if (parseResult.GetValue(jsonOption))
+                {
+                    WriteJson(selection);
+                    return OperatorExitCodes.Success;
+                }
+
+                if (parseResult.GetValue(followOption))
+                {
+                    await runLogService.FollowAsync(
+                        selection,
+                        (chunk, _) =>
+                        {
+                            console.Write(new Text(chunk));
+                            return Task.CompletedTask;
+                        },
+                        TimeSpan.FromMilliseconds(250),
+                        cancellationToken);
+                    return OperatorExitCodes.Success;
+                }
+
+                string content = await runLogService.ReadAsync(selection, cancellationToken);
+                console.Write(new Text(content));
+                if (content.Length > 0 && !content.EndsWith('\n'))
+                {
+                    console.WriteLine();
+                }
+
+                return OperatorExitCodes.Success;
+            }
+            catch (OperationCanceledException)
+            {
+                return OperatorExitCodes.Success;
+            }
+            catch (Exception exception) when (IsOperatorError(exception))
+            {
+                return WriteOperatorError(exception);
+            }
         });
 
         return command;
@@ -381,13 +538,13 @@ public sealed class RingmasterCli(
             if (parseResult.GetValue(jsonOption))
             {
                 WriteJson(result);
-                return 0;
+                return OperatorExitCodes.FromQueuePassResult(result);
             }
 
             if (result.Jobs.Count == 0)
             {
                 console.MarkupLine("[yellow]No runnable jobs.[/]");
-                return 0;
+                return OperatorExitCodes.Success;
             }
 
             foreach (QueueJobResult job in result.Jobs)
@@ -395,7 +552,7 @@ public sealed class RingmasterCli(
                 console.MarkupLine($"{Markup.Escape(job.JobId)} [blue]{job.Disposition}[/] {Markup.Escape(job.Summary)}");
             }
 
-            return 0;
+            return OperatorExitCodes.FromQueuePassResult(result);
         });
 
         return command;
@@ -406,9 +563,11 @@ public sealed class RingmasterCli(
         Command command = new("run", "Start the long-running worker loop.");
         Option<int> maxParallelOption = new("--max-parallel") { Description = "Maximum jobs to run concurrently.", DefaultValueFactory = _ => 1 };
         Option<int> pollIntervalMsOption = new("--poll-interval-ms") { Description = "Delay between idle scheduling passes.", DefaultValueFactory = _ => 2000 };
+        Option<bool> watchOption = new("--watch") { Description = "Alias for the default long-running watch mode." };
 
         command.Options.Add(maxParallelOption);
         command.Options.Add(pollIntervalMsOption);
+        command.Options.Add(watchOption);
 
         command.SetAction(async (parseResult, cancellationToken) =>
         {
@@ -422,16 +581,130 @@ public sealed class RingmasterCli(
                         OwnerId = applicationContext.CurrentActor,
                     },
                     cancellationToken);
-                return 0;
+                return OperatorExitCodes.Success;
             }
             catch (OperationCanceledException)
             {
-                return 0;
+                return OperatorExitCodes.Success;
             }
-            catch (InvalidOperationException exception)
+            catch (Exception exception) when (IsOperatorError(exception))
             {
-                console.MarkupLine($"[red]{Markup.Escape(exception.Message)}[/]");
-                return 1;
+                return WriteOperatorError(exception);
+            }
+        });
+
+        return command;
+    }
+
+    private Command CreateJobResumeCommand()
+    {
+        Command command = new("resume", "Resume a blocked or interrupted job.");
+        Argument<string> jobIdArgument = new("job-id") { Description = "Job identifier." };
+        Option<bool> jsonOption = new("--json") { Description = "Emit JSON output." };
+
+        command.Arguments.Add(jobIdArgument);
+        command.Options.Add(jsonOption);
+
+        command.SetAction(async (parseResult, cancellationToken) =>
+        {
+            string jobId = parseResult.GetValue(jobIdArgument)
+                ?? throw new InvalidOperationException("The required job identifier was not provided.");
+
+            try
+            {
+                JobActionResult result = await jobOperatorService.ResumeAsync(jobId, cancellationToken);
+                if (parseResult.GetValue(jsonOption))
+                {
+                    WriteJson(result);
+                }
+                else
+                {
+                    console.MarkupLine($"[green]{Markup.Escape(result.Summary)}[/]");
+                }
+
+                return OperatorExitCodes.FromJobStatus(result.Status);
+            }
+            catch (Exception exception) when (IsOperatorError(exception))
+            {
+                return WriteOperatorError(exception);
+            }
+        });
+
+        return command;
+    }
+
+    private Command CreateJobUnblockCommand()
+    {
+        Command command = new("unblock", "Store human input and resume a blocked job.");
+        Argument<string> jobIdArgument = new("job-id") { Description = "Job identifier." };
+        Option<string> messageOption = new("--message") { Description = "Human guidance to store durably.", Required = true };
+        Option<bool> jsonOption = new("--json") { Description = "Emit JSON output." };
+
+        command.Arguments.Add(jobIdArgument);
+        command.Options.Add(messageOption);
+        command.Options.Add(jsonOption);
+
+        command.SetAction(async (parseResult, cancellationToken) =>
+        {
+            string jobId = parseResult.GetValue(jobIdArgument)
+                ?? throw new InvalidOperationException("The required job identifier was not provided.");
+            string message = parseResult.GetValue(messageOption)
+                ?? throw new InvalidOperationException("The required --message option was not provided.");
+
+            try
+            {
+                JobActionResult result = await jobOperatorService.UnblockAsync(jobId, message, cancellationToken);
+                if (parseResult.GetValue(jsonOption))
+                {
+                    WriteJson(result);
+                }
+                else
+                {
+                    console.MarkupLine($"[green]{Markup.Escape(result.Summary)}[/]");
+                }
+
+                return OperatorExitCodes.FromJobStatus(result.Status);
+            }
+            catch (Exception exception) when (IsOperatorError(exception))
+            {
+                return WriteOperatorError(exception);
+            }
+        });
+
+        return command;
+    }
+
+    private Command CreateJobCancelCommand()
+    {
+        Command command = new("cancel", "Cancel a queued or blocked job.");
+        Argument<string> jobIdArgument = new("job-id") { Description = "Job identifier." };
+        Option<bool> jsonOption = new("--json") { Description = "Emit JSON output." };
+
+        command.Arguments.Add(jobIdArgument);
+        command.Options.Add(jsonOption);
+
+        command.SetAction(async (parseResult, cancellationToken) =>
+        {
+            string jobId = parseResult.GetValue(jobIdArgument)
+                ?? throw new InvalidOperationException("The required job identifier was not provided.");
+
+            try
+            {
+                JobActionResult result = await jobOperatorService.CancelAsync(jobId, cancellationToken);
+                if (parseResult.GetValue(jsonOption))
+                {
+                    WriteJson(result);
+                }
+                else
+                {
+                    console.MarkupLine($"[yellow]{Markup.Escape(result.Summary)}[/]");
+                }
+
+                return OperatorExitCodes.FromJobStatus(result.Status);
+            }
+            catch (Exception exception) when (IsOperatorError(exception))
+            {
+                return WriteOperatorError(exception);
             }
         });
 
@@ -459,7 +732,7 @@ public sealed class RingmasterCli(
                 if (parseResult.GetValue(jsonOption))
                 {
                     WriteJson(result);
-                    return result.Published ? 0 : 1;
+                    return OperatorExitCodes.FromPullRequestResult(result);
                 }
 
                 if (result.Published)
@@ -469,16 +742,15 @@ public sealed class RingmasterCli(
                     {
                         console.MarkupLine($"URL: {Markup.Escape(result.Url)}");
                     }
-                    return 0;
+                    return OperatorExitCodes.FromPullRequestResult(result);
                 }
 
                 console.MarkupLine($"[red]{Markup.Escape(result.Summary)}[/]");
-                return 1;
+                return OperatorExitCodes.FromPullRequestResult(result);
             }
-            catch (InvalidOperationException exception)
+            catch (Exception exception) when (IsOperatorError(exception))
             {
-                console.MarkupLine($"[red]{Markup.Escape(exception.Message)}[/]");
-                return 1;
+                return WriteOperatorError(exception);
             }
         });
 
@@ -503,7 +775,7 @@ public sealed class RingmasterCli(
             if (storedJob is null)
             {
                 console.MarkupLine($"[red]Job not found:[/] {Markup.Escape(jobId)}");
-                return 1;
+                return OperatorExitCodes.ToolOrConfigError;
             }
 
             string? worktreePath = storedJob.Status.Git?.WorktreePath;
@@ -517,7 +789,7 @@ public sealed class RingmasterCli(
                     WorktreePath = worktreePath,
                     Exists = exists,
                 });
-                return exists ? 0 : 1;
+                return exists ? OperatorExitCodes.Success : OperatorExitCodes.ToolOrConfigError;
             }
 
             if (!exists)
@@ -527,11 +799,11 @@ public sealed class RingmasterCli(
                 {
                     console.MarkupLine($"Last recorded path: [grey]{Markup.Escape(worktreePath)}[/]");
                 }
-                return 1;
+                return OperatorExitCodes.ToolOrConfigError;
             }
 
             console.MarkupLine(Markup.Escape(worktreePath!));
-            return 0;
+            return OperatorExitCodes.Success;
         });
 
         return command;
@@ -561,13 +833,13 @@ public sealed class RingmasterCli(
             if (parseResult.GetValue(jsonOption))
             {
                 WriteJson(result);
-                return result.Jobs.Any(job => job.Disposition is CleanupDisposition.Error) ? 1 : 0;
+                return OperatorExitCodes.FromCleanupResult(result);
             }
 
             if (result.Jobs.Count == 0)
             {
                 console.MarkupLine("[yellow]No jobs available for cleanup.[/]");
-                return 0;
+                return OperatorExitCodes.Success;
             }
 
             foreach (JobCleanupResult job in result.Jobs)
@@ -575,7 +847,7 @@ public sealed class RingmasterCli(
                 console.MarkupLine($"{Markup.Escape(job.JobId)} [blue]{job.Disposition}[/] {Markup.Escape(job.Summary)}");
             }
 
-            return result.Jobs.Any(job => job.Disposition is CleanupDisposition.Error) ? 1 : 0;
+            return OperatorExitCodes.FromCleanupResult(result);
         });
 
         return command;
@@ -585,5 +857,69 @@ public sealed class RingmasterCli(
     {
         console.Write(new Text(RingmasterJsonSerializer.Serialize(value)));
         console.WriteLine();
+    }
+
+    private void RenderStatusDashboard(IReadOnlyList<StatusDisplayItem> snapshot)
+    {
+        console.Clear();
+
+        if (snapshot.Count == 0)
+        {
+            console.MarkupLine("[yellow]No jobs found.[/]");
+            return;
+        }
+
+        Table table = new();
+        table.AddColumn("Job Id");
+        table.AddColumn("State");
+        table.AddColumn("Stage");
+        table.AddColumn("Run");
+        table.AddColumn("Elapsed");
+        table.AddColumn("Retries");
+        table.AddColumn("Last Failure");
+        table.AddColumn("PR");
+        table.AddColumn("Title");
+
+        foreach (StatusDisplayItem item in snapshot)
+        {
+            table.AddRow(
+                item.JobId,
+                item.State.ToString(),
+                item.CurrentStage?.ToString() ?? "-",
+                item.ActiveRunId ?? "-",
+                item.Elapsed is { } elapsed ? elapsed.ToString(@"hh\:mm\:ss") : "-",
+                item.RetryCount.ToString(),
+                Truncate(item.LastFailureSummary, 40),
+                Truncate(item.PullRequestUrl, 40),
+                Truncate(item.Title, 40));
+        }
+
+        console.Write(table);
+    }
+
+    private int WriteOperatorError(Exception exception)
+    {
+        console.MarkupLine($"[red]{Markup.Escape(exception.Message)}[/]");
+        return OperatorExitCodes.ToolOrConfigError;
+    }
+
+    private static bool IsOperatorError(Exception exception)
+    {
+        return exception is InvalidOperationException
+            or IOException
+            or FileNotFoundException
+            or InvalidDataException;
+    }
+
+    private static string Truncate(string? value, int maxLength)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return "-";
+        }
+
+        return value.Length <= maxLength
+            ? value
+            : value[..Math.Max(0, maxLength - 3)] + "...";
     }
 }
