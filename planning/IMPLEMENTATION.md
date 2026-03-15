@@ -124,6 +124,25 @@ For Codex-specific setup, use project-local config where helpful, but keep criti
 
 ---
 
+## Autonomous validation contract
+
+These rules exist so implementation can proceed without human spot-checking.
+
+* Every completed packet must end with a repeatable validation step: a build, test command, integration scenario, fault-injection run, or deterministic fixture-driven simulation.
+* Manual inspection, agent claims, and “looks correct” are never sufficient proof for packet or phase completion.
+* When live dependencies are not yet in scope, prove behavior with fake runners, temp directories, temp git repos, and the planned `samples/sample-repo/` fixture instead of skipping validation.
+* If a packet cannot yet be validated automatically, treat that as a blocker or create an explicit follow-up packet before marking broader work complete.
+* The session log must record the exact validation command or test suite that was actually run.
+
+Validation should climb the cheapest correct ladder:
+
+1. unit tests for pure logic and serialization,
+2. integration tests with temp repos/filesystems and fake stage runners,
+3. fault-injection tests for crash/recovery behavior,
+4. opt-in real-tool smoke tests for `git`, `codex`, and `gh`.
+
+---
+
 ## Phase 0 — Bootstrap and Codex operating contract
 
 ### Goal
@@ -519,6 +538,18 @@ These should be opt-in, not required for every test run:
 * real `codex`
 * real `gh`
 
+### Simulation harness
+
+Use a deterministic local harness for unattended development before real external integrations are required.
+
+Cover:
+
+* fake planner, implementer, verifier, and reviewer runners
+* a compact fixture repo under `samples/sample-repo/`
+* temp git repo builders for worktree and branch lifecycle tests
+* deterministic failing-build, failing-test, and tool-error fixtures
+* recovery scenarios that can be replayed without live Codex or GitHub access
+
 ---
 
 ## Codex working agreement for implementation
@@ -575,8 +606,11 @@ A phase is not complete unless all of these are true:
 
 * all packets in the phase are checked off,
 * relevant tests pass,
+* at least one repeatable validation path proves the phase’s main success path,
+* the session log records the validation commands or suites actually run,
 * docs are updated,
 * no known blocker is hidden,
+* no result is accepted based only on manual inspection or agent claims,
 * the next phase can start without relying on chat memory.
 
 ---
@@ -610,6 +644,15 @@ Summary: Renamed the product scaffold from Orchestrator to Ringmaster and update
 Tests: dotnet build Ringmaster.sln
 Files: .gitignore; Ringmaster.sln; planning/PRODUCT.md; planning/IMPLEMENTATION.md; src/Ringmaster.App/; src/Ringmaster.Core/; src/Ringmaster.Abstractions/; src/Ringmaster.Infrastructure/; src/Ringmaster.Git/; src/Ringmaster.Codex/; src/Ringmaster.GitHub/
 Follow-ups: Continue with P0.2 using the Ringmaster naming baseline.
+```
+
+```text
+2026-03-15 16:37 UTC
+Packet: Planning
+Summary: Tightened the implementation contract so unattended work must be gated by repeatable validation, and made the fake-runner plus sample-repo path an explicit simulation harness before live integrations are required.
+Tests: not run (planning-doc update only)
+Files: planning/IMPLEMENTATION.md; planning/PRODUCT.md
+Follow-ups: Apply the validation contract to every future packet, starting with P0.2.
 ```
 
 ---

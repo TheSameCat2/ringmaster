@@ -146,6 +146,19 @@ At minimum:
 
 That keeps Codex, GitHub, and even git itself replaceable.
 
+## 1.6 Validation model
+
+The product should be buildable and evolvable without requiring a human to inspect every step.
+
+That means Ringmaster needs two complementary proof paths:
+
+* **deterministic verification** against the target repo via configured build/test commands, and
+* **deterministic simulation** for pre-integration phases via fake stage runners, temp repos, and a small fixture repo.
+
+Until live Codex, GitHub, or full repo workflows are in scope, the simulation path is the required proof mechanism. It should be cheap to run locally and in CI, and it should exercise the same orchestrator interfaces that real integrations later use.
+
+No lifecycle transition or implementation phase should be considered complete based solely on agent narration or manual inspection.
+
 ---
 
 ## 2. Data Model
