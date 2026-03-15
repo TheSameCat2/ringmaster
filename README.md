@@ -1,5 +1,7 @@
 # 🎪 Ringmaster
 
+![Ringmaster](docs/images/ringmaster.png)
+
 *Step right up, darling. Let me orchestrate your chaos.*
 
 Ringmaster is a filesystem-first workflow engine for durable Codex-driven engineering jobs. It holds the whip, keeps the workers in line, and makes sure nothing escapes the tent.
