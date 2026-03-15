@@ -185,18 +185,18 @@ Implement the durable job model and filesystem persistence before integrating Gi
 
 ### Work packets
 
-* [ ] **P1.1** Define core enums and records: job states, stage roles, failure categories, retry counters, PR status, blocker info.
-* [ ] **P1.2** Define canonical file models for `JOB.json`, `STATUS.json`, run metadata, and event records.
-* [ ] **P1.3** Implement serializer settings and versioned schemas.
-* [ ] **P1.4** Implement atomic file writing and append-only event logging.
-* [ ] **P1.5** Implement snapshot rebuild from `events.jsonl`.
-* [ ] **P1.6** Implement `IJobRepository` and local filesystem repository.
-* [ ] **P1.7** Implement CLI commands:
+* [x] **P1.1** Define core enums and records: job states, stage roles, failure categories, retry counters, PR status, blocker info.
+* [x] **P1.2** Define canonical file models for `JOB.json`, `STATUS.json`, run metadata, and event records.
+* [x] **P1.3** Implement serializer settings and versioned schemas.
+* [x] **P1.4** Implement atomic file writing and append-only event logging.
+* [x] **P1.5** Implement snapshot rebuild from `events.jsonl`.
+* [x] **P1.6** Implement `IJobRepository` and local filesystem repository.
+* [x] **P1.7** Implement CLI commands:
 
   * `job create`
   * `job show`
   * `status`
-* [ ] **P1.8** Add unit tests for serialization, atomic writes, snapshot rebuild, and folder layout.
+* [x] **P1.8** Add unit tests for serialization, atomic writes, snapshot rebuild, and folder layout.
 
 ### Notes
 
@@ -718,11 +718,83 @@ Files: src/Ringmaster.App/Program.cs; src/Ringmaster.App/CommandLine/RingmasterC
 Follow-ups: Start Phase 1 with the durable job-state and persistence models that will back these CLI surfaces.
 ```
 
+```text
+2026-03-15 16:55 UTC
+Packet: P1.1
+Summary: Defined the first durable job-domain enums and records for lifecycle state, stage roles, failure categories, blocker info, PR status, review status, execution state, and retry counters.
+Tests: dotnet test Ringmaster.sln
+Files: src/Ringmaster.Core/Jobs/JobEnums.cs; src/Ringmaster.Core/Jobs/JobStatusSnapshot.cs; src/Ringmaster.Core/Jobs/JobDefinition.cs; src/Ringmaster.Core/Jobs/JobRunRecord.cs; src/Ringmaster.Core/ProductInfo.cs
+Follow-ups: P1.2 and P1.3 serialize these records directly into the on-disk contract.
+```
+
+```text
+2026-03-15 16:55 UTC
+Packet: P1.2
+Summary: Added canonical file models for JOB.json, STATUS.json, run metadata, and event records, including the fields needed to rebuild queued status from the event log.
+Tests: dotnet test Ringmaster.sln
+Files: src/Ringmaster.Core/Jobs/JobDefinition.cs; src/Ringmaster.Core/Jobs/JobStatusSnapshot.cs; src/Ringmaster.Core/Jobs/JobRunRecord.cs; src/Ringmaster.Core/Jobs/JobEventRecord.cs
+Follow-ups: Later phases can extend these records without changing the basic file ownership model.
+```
+
+```text
+2026-03-15 16:55 UTC
+Packet: P1.3
+Summary: Added the shared JSON serializer settings for schema version 1, camelCase JSON, string enums, pretty-printed snapshots, and compact JSONL event serialization.
+Tests: dotnet test Ringmaster.sln
+Files: src/Ringmaster.Core/Serialization/RingmasterJsonSerializer.cs; tests/Ringmaster.Core.Tests/RingmasterJsonSerializerTests.cs
+Follow-ups: Keep future schema additions backward-compatible or bump schema version explicitly.
+```
+
+```text
+2026-03-15 16:55 UTC
+Packet: P1.4
+Summary: Implemented atomic UTF-8 file writes and append-only JSONL event logging for durable job persistence.
+Tests: dotnet test Ringmaster.sln
+Files: src/Ringmaster.Infrastructure/Persistence/AtomicFileWriter.cs; src/Ringmaster.Infrastructure/Persistence/JobEventLogStore.cs; tests/Ringmaster.IntegrationTests/LocalFilesystemJobRepositoryTests.cs
+Follow-ups: Later phases should reuse these primitives for run metadata, artifacts, and status updates.
+```
+
+```text
+2026-03-15 16:55 UTC
+Packet: P1.5
+Summary: Implemented snapshot rebuild from events.jsonl so STATUS.json can be recreated deterministically if the materialized snapshot is missing or damaged.
+Tests: dotnet test Ringmaster.sln
+Files: src/Ringmaster.Core/Jobs/JobSnapshotRebuilder.cs; tests/Ringmaster.Core.Tests/JobSnapshotRebuilderTests.cs; tests/Ringmaster.IntegrationTests/LocalFilesystemJobRepositoryTests.cs
+Follow-ups: Extend the reducer as later phases introduce more event types.
+```
+
+```text
+2026-03-15 16:55 UTC
+Packet: P1.6
+Summary: Added IJobRepository plus the local filesystem repository, deterministic job ID generation, job folder layout creation, placeholder markdown files, and status rebuilding on load.
+Tests: dotnet test Ringmaster.sln; /home/thesamecat/dev/csharp/ringmaster/src/Ringmaster.App/bin/Debug/net10.0/ringmaster job create --title "Add retry handling" --description "Implement bounded retries." --json
+Files: src/Ringmaster.Abstractions/Jobs/JobRepositoryContracts.cs; src/Ringmaster.Infrastructure/Persistence/DefaultJobIdGenerator.cs; src/Ringmaster.Infrastructure/Persistence/LocalFilesystemJobRepository.cs
+Follow-ups: The repository is ready for the explicit state machine in Phase 2.
+```
+
+```text
+2026-03-15 16:55 UTC
+Packet: P1.7
+Summary: Replaced the placeholder job/status shell commands with real job creation, job inspection, and queue-status surfaces backed by the filesystem repository.
+Tests: dotnet test Ringmaster.sln; /home/thesamecat/dev/csharp/ringmaster/src/Ringmaster.App/bin/Debug/net10.0/ringmaster job show job-20260315-c0119f2e5 --json; /home/thesamecat/dev/csharp/ringmaster/src/Ringmaster.App/bin/Debug/net10.0/ringmaster status --json
+Files: src/Ringmaster.App/Program.cs; src/Ringmaster.App/RingmasterApplicationContext.cs; src/Ringmaster.App/CommandLine/RingmasterCli.cs; tests/Ringmaster.IntegrationTests/RingmasterCliCommandTests.cs
+Follow-ups: Phase 2 can now drive the same repository through fake stage execution.
+```
+
+```text
+2026-03-15 16:55 UTC
+Packet: P1.8
+Summary: Added unit and integration coverage for serialization, snapshot rebuild, atomic writes, repository folder layout, and the Phase 1 CLI command path.
+Tests: dotnet test Ringmaster.sln
+Files: tests/Ringmaster.Core.Tests/JobSnapshotRebuilderTests.cs; tests/Ringmaster.Core.Tests/RingmasterJsonSerializerTests.cs; tests/Ringmaster.IntegrationTests/LocalFilesystemJobRepositoryTests.cs; tests/Ringmaster.IntegrationTests/RingmasterCliCommandTests.cs; tests/Ringmaster.IntegrationTests/Testing/
+Follow-ups: Add fake-runner lifecycle integration tests in Phase 2.
+```
+
 ---
 
 ## Immediate next step
 
-Start **Phase 1, Packet P1.1** and define the core job/state enums and records that the persistence layer will serialize.
+Start **Phase 2, Packet P2.1** and lock down the explicit state machine and transition rules over the persisted job model.
 
 [1]: https://developers.openai.com/codex/cli/?utm_source=chatgpt.com "Codex CLI"
 [2]: https://developers.openai.com/codex/learn/best-practices/?utm_source=chatgpt.com "Best practices"
