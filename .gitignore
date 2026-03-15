@@ -1,0 +1,22 @@
+## .NET build output
+bin/
+obj/
+TestResults/
+
+## IDE/editor state
+.vs/
+.idea/
+*.user
+*.suo
+*.userprefs
+
+## OS noise
+.DS_Store
+Thumbs.db
+
+## Local package/build artifacts
+artifacts/
+*.nupkg
+
+## Orchestrator runtime state
+.orchestrator/
