@@ -6,6 +6,8 @@ namespace Ringmaster.IntegrationTests.Testing;
 
 internal sealed class TemporaryGitRepository : IDisposable
 {
+    private bool _disposed;
+
     public TemporaryGitRepository()
     {
         Path = System.IO.Path.Combine(System.IO.Path.GetTempPath(), $"ringmaster-git-tests-{Guid.NewGuid():N}");
@@ -45,10 +47,16 @@ internal sealed class TemporaryGitRepository : IDisposable
 
     public void Dispose()
     {
-        if (Directory.Exists(Path))
+        if (_disposed)
         {
-            Directory.Delete(Path, recursive: true);
+            return;
         }
+
+        _disposed = true;
+
+        CleanupLinkedWorktrees();
+        DeleteDirectoryRobustly(GetWorktreeRoot());
+        DeleteDirectoryRobustly(Path);
     }
 
     public static string CreateDefaultRepoConfigJson(params VerificationCommandDefinition[] commands)
@@ -119,5 +127,141 @@ internal sealed class TemporaryGitRepository : IDisposable
         }
 
         return stdout;
+    }
+
+    private void CleanupLinkedWorktrees()
+    {
+        if (!Directory.Exists(System.IO.Path.Combine(Path, ".git")))
+        {
+            return;
+        }
+
+        try
+        {
+            foreach (string worktreePath in ListWorktreePaths().Where(worktreePath =>
+                         !string.Equals(
+                             System.IO.Path.GetFullPath(worktreePath),
+                             System.IO.Path.GetFullPath(Path),
+                             StringComparison.Ordinal)))
+            {
+                RunProcess("git", ["worktree", "remove", "--force", "--force", worktreePath], throwOnFailure: false);
+            }
+
+            RunProcess("git", ["worktree", "prune"], throwOnFailure: false);
+        }
+        catch
+        {
+            // Best-effort cleanup for test repositories.
+        }
+    }
+
+    private string GetWorktreeRoot()
+    {
+        string repoRoot = System.IO.Path.GetFullPath(Path);
+        string repoName = new DirectoryInfo(repoRoot).Name;
+        string repoParent = Directory.GetParent(repoRoot)?.FullName
+            ?? throw new InvalidOperationException($"Repository root '{repoRoot}' does not have a parent directory.");
+        return System.IO.Path.Combine(repoParent, ".ringmaster-worktrees", repoName);
+    }
+
+    private IReadOnlyList<string> ListWorktreePaths()
+    {
+        string stdout = RunProcess("git", ["worktree", "list", "--porcelain", "-z"]);
+        string[] tokens = stdout.Split('\0', StringSplitOptions.RemoveEmptyEntries);
+        List<string> paths = [];
+
+        foreach (string token in tokens)
+        {
+            if (token.StartsWith("worktree ", StringComparison.Ordinal))
+            {
+                paths.Add(token["worktree ".Length..]);
+            }
+        }
+
+        return paths;
+    }
+
+    private string RunProcess(string fileName, IReadOnlyList<string> arguments, bool throwOnFailure = true)
+    {
+        ProcessStartInfo startInfo = new()
+        {
+            FileName = fileName,
+            WorkingDirectory = Path,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+        };
+
+        foreach (string argument in arguments)
+        {
+            startInfo.ArgumentList.Add(argument);
+        }
+
+        using Process process = new()
+        {
+            StartInfo = startInfo,
+        };
+
+        process.Start();
+        string stdout = process.StandardOutput.ReadToEnd();
+        string stderr = process.StandardError.ReadToEnd();
+        process.WaitForExit();
+
+        if (throwOnFailure && process.ExitCode != 0)
+        {
+            throw new InvalidOperationException(
+                $"Command '{fileName} {string.Join(' ', arguments)}' failed with exit code {process.ExitCode}: {stderr}");
+        }
+
+        return stdout;
+    }
+
+    private static void DeleteDirectoryRobustly(string path)
+    {
+        if (!Directory.Exists(path))
+        {
+            return;
+        }
+
+        Exception? lastError = null;
+
+        for (int attempt = 0; attempt < 8; attempt++)
+        {
+            try
+            {
+                ClearReadOnlyAttributes(path);
+                Directory.Delete(path, recursive: true);
+                return;
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+            {
+                lastError = exception;
+                Thread.Sleep(TimeSpan.FromMilliseconds(50 * (attempt + 1)));
+            }
+        }
+
+        throw lastError ?? new IOException($"Failed to delete '{path}'.");
+    }
+
+    private static void ClearReadOnlyAttributes(string path)
+    {
+        if (!Directory.Exists(path))
+        {
+            return;
+        }
+
+        foreach (string filePath in Directory.EnumerateFiles(path, "*", SearchOption.AllDirectories))
+        {
+            File.SetAttributes(filePath, File.GetAttributes(filePath) & ~FileAttributes.ReadOnly);
+        }
+
+        foreach (string directoryPath in Directory.EnumerateDirectories(path, "*", SearchOption.AllDirectories)
+                     .OrderByDescending(directoryPath => directoryPath.Length))
+        {
+            FileAttributes attributes = File.GetAttributes(directoryPath);
+            File.SetAttributes(directoryPath, attributes & ~FileAttributes.ReadOnly);
+        }
+
+        File.SetAttributes(path, File.GetAttributes(path) & ~FileAttributes.ReadOnly);
     }
 }

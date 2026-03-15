@@ -83,6 +83,45 @@ public sealed class PhaseThreeIntegrationTests
     }
 
     [Fact]
+    public async Task TemporaryGitRepositoryDisposeRemovesLinkedWorktrees()
+    {
+        TemporaryGitRepository repositoryRoot = new();
+        bool disposed = false;
+
+        try
+        {
+            await repositoryRoot.InitializeAsync();
+            TimeProvider timeProvider = new StaticTimeProvider(new DateTimeOffset(2026, 3, 15, 18, 30, 0, TimeSpan.Zero));
+            GitCli gitCli = new(new ExternalProcessRunner(timeProvider));
+            GitWorktreeManager worktreeManager = new(gitCli);
+            PreparedWorktree prepared = await worktreeManager.PrepareAsync(
+                repositoryRoot.Path,
+                "job-20260315-7f3c9b2a",
+                "Add retry handling",
+                "master",
+                CancellationToken.None);
+            string repoPath = repositoryRoot.Path;
+            string worktreeRoot = worktreeManager.GetWorktreeRoot(repoPath);
+
+            Assert.True(Directory.Exists(prepared.WorktreePath));
+
+            repositoryRoot.Dispose();
+            disposed = true;
+
+            Assert.False(Directory.Exists(repoPath));
+            Assert.False(Directory.Exists(prepared.WorktreePath));
+            Assert.False(Directory.Exists(worktreeRoot));
+        }
+        finally
+        {
+            if (!disposed)
+            {
+                repositoryRoot.Dispose();
+            }
+        }
+    }
+
+    [Fact]
     public async Task RunAsyncBlocksWhenRepositoryConfigIsMissing()
     {
         using TemporaryGitRepository repositoryRoot = new();
