@@ -2,19 +2,36 @@
 
 ![Ringmaster](docs/images/ringmaster.png)
 
+
 *Step right up, darling. Let me orchestrate your chaos.*
 
-Ringmaster is a filesystem-first workflow engine for durable Codex-driven engineering jobs. It holds the whip, keeps the workers in line, and makes sure nothing escapes the tent.
+**Tired of babysitting AI coding agents?** They hallucinate, drift off-task, break builds, and leave you cleaning up messes at 2am.
 
-**What it controls:**
+**Ringmaster keeps them on a leash.**
 
-- Queued job state under `.ringmaster/jobs` — *your sins, filed neatly*
-- Linked git worktrees for isolated implementation — *every act gets its own stage*
-- Verification and review artifacts — *nothing leaves without inspection*
-- Repair-loop and retry decisions — *we don't accept failure, we rewrite it*
-- Pull request publication through GitHub CLI — *the final bow*
+```bash
+# One command. AI does the work. Tests pass. PR opens. You sleep.
+ringmaster job create --title "Add rate limiting" --task-file task.md --auto-open-pr
+ringmaster queue run --watch
+```
 
-Codex is just a performer. **Ringmaster owns the circus** — state, retries, verification, and all git side effects bow to it.
+That's it. Ringmaster hands your task to Codex in an isolated git worktree, verifies the build passes, runs your tests, and opens a PR — *automatically*. If something breaks, it repairs. If the agent gets stuck, it asks you. If tests fail, it loops until they don't.
+
+**The problem:** AI coding agents are powerful but unreliable. They need structure, verification, and retry logic.
+
+**The solution:** Ringmaster is a filesystem-first workflow engine that owns state, verification, retries, and git side effects. Codex is just the performer. **Ringmaster owns the circus.**
+
+---
+
+## 🖤 What Ringmaster Controls
+
+- **Queued job state** under `.ringmaster/jobs` — *your sins, filed neatly*
+- **Linked git worktrees** for isolated implementation — *every act gets its own stage*
+- **Verification artifacts** — *nothing leaves without inspection*
+- **Repair-loop and retry decisions** — *we don't accept failure, we rewrite it*
+- **Pull request publication** through GitHub CLI — *the final bow*
+
+Codex is replaceable. **Ringmaster is the infrastructure** — state, retries, verification, and all git side effects answer to it.
 
 ---
 
@@ -171,6 +188,7 @@ Create the job:
 ringmaster job create \
   --title "Add exponential backoff to RetryPolicy" \
   --task-file task.md \
+  --base-branch main \
   --verify-profile default \
   --auto-open-pr \
   --label automation
@@ -276,7 +294,7 @@ Create `src/greeter.cpp`:
 
 std::string greeting()
 {
-    return "hello";
+  return "hello";
 }
 ```
 
@@ -289,8 +307,8 @@ Create `src/main.cpp`:
 
 int main()
 {
-    std::cout << greeting() << '\n';
-    return 0;
+  std::cout << greeting() << '\n';
+  return 0;
 }
 ```
 
@@ -303,8 +321,8 @@ Create `tests/greeter_tests.cpp`:
 
 int main()
 {
-    assert(greeting() == "hello");
-    return 0;
+  assert(greeting() == "hello");
+  return 0;
 }
 ```
 
@@ -372,7 +390,7 @@ For a CMake repo, you will usually replace the generated `ringmaster.json` with 
 }
 ```
 
-Then verify the environment:
+Then verify Ringmaster prerequisites and repo health:
 
 ```bash
 ringmaster doctor
@@ -399,6 +417,7 @@ Create and run the job:
 ringmaster job create \
   --title "Add configurable greeting prefix" \
   --task-file task.md \
+  --base-branch main \
   --verify-profile default
 
 ringmaster job run <jobId>
@@ -448,7 +467,7 @@ Detailed CLI examples live in [`docs/CLI.md`](docs/CLI.md).
 
 ## 🤖 Agentic Use
 
-This repository includes a root [`SKILL.md`](SKILL.md) for agent frameworks such as OpenClaw. Use that file when you want an agent to operate the repo through Ringmaster’s intended CLI workflow instead of inventing its own orchestration.
+This repository includes a root [`SKILL.md`](SKILL.md) for agent frameworks such as OpenClaw. Use that file when you want an agent to operate the repo through Ringmaster's intended CLI workflow instead of inventing its own orchestration.
 
 ---
 
