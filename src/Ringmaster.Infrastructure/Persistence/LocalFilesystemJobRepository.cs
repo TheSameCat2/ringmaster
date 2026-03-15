@@ -252,7 +252,7 @@ internal static class RingmasterPaths
     public static string RingmasterRoot(string repositoryRoot) => Path.Combine(repositoryRoot, ProductInfo.RuntimeDirectoryName);
     public static string RuntimeRoot(string repositoryRoot) => Path.Combine(RingmasterRoot(repositoryRoot), "runtime");
     public static string JobsRoot(string repositoryRoot) => Path.Combine(RingmasterRoot(repositoryRoot), "jobs");
-    public static string JobRoot(string repositoryRoot, string jobId) => Path.Combine(JobsRoot(repositoryRoot), jobId);
+    public static string JobRoot(string repositoryRoot, string jobId) => Path.Combine(JobsRoot(repositoryRoot), ValidatePathSegment(jobId, nameof(jobId)));
     public static string JobDefinitionPath(string repositoryRoot, string jobId) => Path.Combine(JobRoot(repositoryRoot, jobId), "JOB.json");
     public static string JobMarkdownPath(string repositoryRoot, string jobId) => Path.Combine(JobRoot(repositoryRoot, jobId), "JOB.md");
     public static string StatusPath(string repositoryRoot, string jobId) => Path.Combine(JobRoot(repositoryRoot, jobId), "STATUS.json");
@@ -264,4 +264,19 @@ internal static class RingmasterPaths
     public static string RunDirectoryPath(string repositoryRoot, string jobId, string runId) => Path.Combine(JobRoot(repositoryRoot, jobId), "runs", runId);
     public static string RunRecordPath(string repositoryRoot, string jobId, string runId) => Path.Combine(RunDirectoryPath(repositoryRoot, jobId, runId), "run.json");
     public static string NotificationsPath(string repositoryRoot) => Path.Combine(RuntimeRoot(repositoryRoot), "notifications.jsonl");
+
+    private static string ValidatePathSegment(string value, string parameterName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value, parameterName);
+
+        if (Path.IsPathRooted(value)
+            || value.Contains(Path.DirectorySeparatorChar)
+            || value.Contains(Path.AltDirectorySeparatorChar)
+            || value.Contains("..", StringComparison.Ordinal))
+        {
+            throw new ArgumentException($"The {parameterName} value '{value}' is not a valid path segment.", parameterName);
+        }
+
+        return value;
+    }
 }

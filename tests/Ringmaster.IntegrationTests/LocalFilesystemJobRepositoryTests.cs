@@ -68,6 +68,47 @@ public sealed class LocalFilesystemJobRepositoryTests
         Assert.Equal(storedJob.Definition.Title, rebuilt.Title);
     }
 
+
+    [Theory]
+    [InlineData("../evil")]
+    [InlineData("..\\evil")]
+    [InlineData("nested/job")]
+    [InlineData("nested\\job")]
+    [InlineData("/tmp/evil")]
+    public async Task RepositoryOperationsRejectInvalidJobIds(string jobId)
+    {
+        using TemporaryDirectory temporaryDirectory = new();
+        DateTimeOffset createdAt = new(2026, 3, 15, 16, 45, 0, TimeSpan.Zero);
+        LocalFilesystemJobRepository repository = CreateRepository(temporaryDirectory.Path, createdAt);
+
+        StoredJob storedJob = await repository.CreateAsync(
+            new JobCreateRequest
+            {
+                Title = "Add retry handling",
+                Description = "Implement bounded retries for retryable failures.",
+                CreatedBy = "tester",
+            },
+            CancellationToken.None);
+
+        JobRunRecord run = new()
+        {
+            RunId = "0001-preparing-planner",
+            JobId = storedJob.Definition.JobId,
+            Stage = JobStage.PREPARING,
+            Role = StageRole.Planner,
+            Attempt = 1,
+            StartedAtUtc = createdAt,
+            Tool = "fake",
+            Command = ["fake-runner", "PREPARING"],
+        };
+
+        await Assert.ThrowsAsync<ArgumentException>(() => repository.GetAsync(jobId, CancellationToken.None));
+        await Assert.ThrowsAsync<ArgumentException>(() => repository.RebuildStatusAsync(jobId, CancellationToken.None));
+        await Assert.ThrowsAsync<ArgumentException>(() => repository.AppendEventAsync(jobId, JobEventRecord.CreateRunStarted(run), CancellationToken.None));
+        await Assert.ThrowsAsync<ArgumentException>(() => repository.GetNextRunNumberAsync(jobId, CancellationToken.None));
+        await Assert.ThrowsAsync<ArgumentException>(() => repository.SaveRunAsync(jobId, run, CancellationToken.None));
+    }
+
     [Fact]
     public async Task AtomicWriterOverwritesFileWithoutLeavingTemporaryArtifacts()
     {

@@ -1092,3 +1092,12 @@ All planned v1 implementation packets are complete. Pull from the deferred list 
 [6]: https://developers.openai.com/codex/cli/reference/?utm_source=chatgpt.com "Command line options"
 [7]: https://developers.openai.com/codex/noninteractive/?utm_source=chatgpt.com "Non-interactive mode"
 [8]: https://developers.openai.com/codex/guides/agents-md/?utm_source=chatgpt.com "Custom instructions with AGENTS.md"
+
+```text
+2026-03-16 00:00 UTC
+Packet: Security hotfix - job-id traversal guard
+Summary: Confirmed job-id path traversal remained reachable in HEAD, then hardened repository path construction to reject rooted/separator/traversal job IDs and added integration coverage to assert repository operations fail fast for invalid IDs.
+Tests: dotnet build Ringmaster.sln (fails: dotnet not found); dotnet test Ringmaster.sln (fails: dotnet not found); ./src/Ringmaster.App/bin/Debug/net10.0/ringmaster --help (fails: binary missing because dotnet build unavailable); bash -n scripts/dev/*.sh
+Files: src/Ringmaster.Infrastructure/Persistence/LocalFilesystemJobRepository.cs; tests/Ringmaster.IntegrationTests/LocalFilesystemJobRepositoryTests.cs
+Follow-ups: Once .NET SDK is available in CI/dev shell, rerun full build/test/smoke commands to verify end-to-end behavior.
+```
