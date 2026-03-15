@@ -31,7 +31,7 @@ public sealed class ImplementingStageRunner(
             {
                 Kind = AgentRunKind.Implementer,
                 WorkingDirectory = worktreePath,
-                AdditionalWritableDirectories = [context.Job.JobDirectoryPath],
+                AdditionalWritableDirectories = [context.RunDirectoryPath],
                 RunDirectoryPath = context.RunDirectoryPath,
                 PromptText = prompt.PromptText,
                 OutputSchemaJson = prompt.OutputSchemaJson,

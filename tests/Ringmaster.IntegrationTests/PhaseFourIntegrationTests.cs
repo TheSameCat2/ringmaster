@@ -27,9 +27,11 @@ public sealed class PhaseFourIntegrationTests
             new GitWorktreeManager(new GitCli(new ExternalProcessRunner(timeProvider))),
             jobRepository,
             timeProvider);
+        List<CodexExecRequest> codexRequests = [];
         IAgentRunner agentRunner = new CodexAgentRunner(
             new FakeCodexRunner(async (request, cancellationToken) =>
             {
+                codexRequests.Add(request);
                 await File.WriteAllTextAsync(request.EventLogPath, "{\"type\":\"thread.started\",\"thread_id\":\"" + request.Kind.ToString().ToLowerInvariant() + "-session\"}" + Environment.NewLine, cancellationToken);
                 await File.WriteAllTextAsync(request.StderrPath, string.Empty, cancellationToken);
 
@@ -129,6 +131,11 @@ public sealed class PhaseFourIntegrationTests
         Assert.Equal("implementer-session", implementingRun.SessionId);
         Assert.Equal("prompt.md", planningRun.Artifacts.Prompt);
         Assert.Equal("final-output.json", implementingRun.Artifacts.FinalOutput);
+
+        CodexExecRequest plannerRequest = Assert.Single(codexRequests.Where(request => request.Kind == AgentRunKind.Planner));
+        CodexExecRequest implementerRequest = Assert.Single(codexRequests.Where(request => request.Kind == AgentRunKind.Implementer));
+        Assert.Equal([Path.Combine(storedJob.JobDirectoryPath, "runs", "0001-preparing-planner")], plannerRequest.AdditionalWritableDirectories);
+        Assert.Equal([Path.Combine(storedJob.JobDirectoryPath, "runs", "0002-implementing-implementer")], implementerRequest.AdditionalWritableDirectories);
     }
 
     [Fact]

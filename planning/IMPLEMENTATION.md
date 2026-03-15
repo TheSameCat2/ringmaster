@@ -1092,3 +1092,12 @@ All planned v1 implementation packets are complete. Pull from the deferred list 
 [6]: https://developers.openai.com/codex/cli/reference/?utm_source=chatgpt.com "Command line options"
 [7]: https://developers.openai.com/codex/noninteractive/?utm_source=chatgpt.com "Non-interactive mode"
 [8]: https://developers.openai.com/codex/guides/agents-md/?utm_source=chatgpt.com "Custom instructions with AGENTS.md"
+
+```text
+2026-03-15 21:45 UTC
+Packet: Security hotfix (Codex writable scope)
+Summary: Narrowed Codex additional writable directories from the full job root to each run directory for planner/implementer/repairer/reviewer stages, updated prompts to reflect run-directory write scope, and added integration assertions that planner and implementer requests only pass their run directories.
+Tests: dotnet build Ringmaster.sln (fails: dotnet not installed in container); dotnet test Ringmaster.sln (fails: dotnet not installed in container); ./src/Ringmaster.App/bin/Debug/net10.0/ringmaster --help (fails: binary not built in this environment); bash -n scripts/dev/*.sh
+Files: src/Ringmaster.Codex/PlanningStageRunner.cs; src/Ringmaster.Codex/ImplementingStageRunner.cs; src/Ringmaster.Codex/RepairingStageRunner.cs; src/Ringmaster.Codex/ReviewingStageRunner.cs; src/Ringmaster.Codex/CodexPromptBuilder.cs; tests/Ringmaster.IntegrationTests/PhaseFourIntegrationTests.cs
+Follow-ups: Re-run full build/test/CLI smoke in an environment with the .NET SDK installed.
+```
