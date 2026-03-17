@@ -63,7 +63,7 @@ public sealed class PullRequestDraftBuilder(Ringmaster.Infrastructure.Persistenc
             lines.Add("## Verification");
             lines.AddRange(
                 verificationSummary.Commands.Select(
-                    command => $"- `{command.FileName} {string.Join(' ', command.Arguments)}` (exit {command.ExitCode})"));
+                    command => $"- `{command.FileName}` ({command.Arguments.Count} args, exit {command.ExitCode})"));
         }
 
         lines.Add(string.Empty);

@@ -1078,6 +1078,17 @@ Files: README.md; docs/CLI.md; planning/PRODUCT.md; src/Ringmaster.App/CommandLi
 Follow-ups: v1 implementation packets are complete; any further work should come from the deferred list or new user-prioritized scope rather than hidden CLI gaps.
 ```
 
+
+```text
+2026-03-15 21:49 UTC
+Packet: Security hotfix - PR verification command redaction
+Summary: Removed verification command arguments from generated PR.md verification lines and added integration coverage to ensure script argument values are not surfaced in the draft body.
+Tests: dotnet build Ringmaster.sln; dotnet test Ringmaster.sln; ./src/Ringmaster.App/bin/Debug/net10.0/ringmaster --help; bash -n scripts/dev/*.sh
+Files: src/Ringmaster.Codex/PullRequestDraftBuilder.cs; tests/Ringmaster.IntegrationTests/PhaseFiveIntegrationTests.cs
+Follow-ups: If operators need deeper verification diagnostics in PR content, add an explicit redaction-aware allowlist format instead of restoring raw argument output.
+```
+
+
 ---
 
 ## Immediate next step
