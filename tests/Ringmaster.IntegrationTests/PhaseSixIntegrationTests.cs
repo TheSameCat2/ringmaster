@@ -71,7 +71,8 @@ public sealed class PhaseSixIntegrationTests
         LocalFilesystemJobRepository repository = CreateRepository(temporaryDirectory.Path, timeProvider);
         StoredJob storedJob = await repository.CreateAsync(CreateRequest("Queue run job"), CancellationToken.None);
         QueueProcessor queueProcessor = CreateQueueProcessor(temporaryDirectory.Path, repository, timeProvider);
-        using CancellationTokenSource cancellationTokenSource = new(TimeSpan.FromSeconds(5));
+        // GitHub's Windows runners can take noticeably longer to flush the extra filesystem I/O in the queue loop.
+        using CancellationTokenSource cancellationTokenSource = new(TimeSpan.FromSeconds(15));
         Exception? runTaskError = null;
 
         Task runTask = queueProcessor.RunAsync(
@@ -85,7 +86,7 @@ public sealed class PhaseSixIntegrationTests
 
         try
         {
-            await WaitForJobStateAsync(repository, storedJob.Definition.JobId, JobState.READY_FOR_PR, TimeSpan.FromSeconds(3));
+            await WaitForJobStateAsync(repository, storedJob.Definition.JobId, JobState.READY_FOR_PR, TimeSpan.FromSeconds(10));
         }
         finally
         {
