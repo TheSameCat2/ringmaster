@@ -132,8 +132,8 @@ public sealed class PhaseFourIntegrationTests
         Assert.Equal("prompt.md", planningRun.Artifacts.Prompt);
         Assert.Equal("final-output.json", implementingRun.Artifacts.FinalOutput);
 
-        CodexExecRequest plannerRequest = Assert.Single(codexRequests.Where(request => request.Kind == AgentRunKind.Planner));
-        CodexExecRequest implementerRequest = Assert.Single(codexRequests.Where(request => request.Kind == AgentRunKind.Implementer));
+        CodexExecRequest plannerRequest = Assert.Single(codexRequests, request => request.Kind == AgentRunKind.Planner);
+        CodexExecRequest implementerRequest = Assert.Single(codexRequests, request => request.Kind == AgentRunKind.Implementer);
         Assert.Equal([Path.Combine(storedJob.JobDirectoryPath, "runs", "0001-preparing-planner")], plannerRequest.AdditionalWritableDirectories);
         Assert.Equal([Path.Combine(storedJob.JobDirectoryPath, "runs", "0002-implementing-implementer")], implementerRequest.AdditionalWritableDirectories);
     }

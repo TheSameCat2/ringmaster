@@ -166,6 +166,11 @@ public sealed class JobEngine(
         }
 
         string runId = execution.RunId;
+        if (!IsSafeRunId(runId))
+        {
+            return;
+        }
+
         string tool = "abandoned";
         IReadOnlyList<string> command = [];
         string runPath = Path.Combine(storedJob.JobDirectoryPath, "runs", runId, "run.json");
@@ -233,5 +238,17 @@ public sealed class JobEngine(
             StageRole.SystemVerifier => "system",
             _ => role.ToString().ToLowerInvariant(),
         };
+    }
+
+    private static bool IsSafeRunId(string runId)
+    {
+        if (string.IsNullOrWhiteSpace(runId) || Path.IsPathRooted(runId))
+        {
+            return false;
+        }
+
+        return runId.IndexOf(Path.DirectorySeparatorChar) < 0
+            && runId.IndexOf(Path.AltDirectorySeparatorChar) < 0
+            && !runId.Contains("..", StringComparison.Ordinal);
     }
 }

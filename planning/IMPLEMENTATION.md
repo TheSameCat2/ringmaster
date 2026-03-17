@@ -1078,6 +1078,17 @@ Files: README.md; docs/CLI.md; planning/PRODUCT.md; src/Ringmaster.App/CommandLi
 Follow-ups: v1 implementation packets are complete; any further work should come from the deferred list or new user-prioritized scope rather than hidden CLI gaps.
 ```
 
+
+```text
+2026-03-15 21:49 UTC
+Packet: Security hotfix - PR verification command redaction
+Summary: Removed verification command arguments from generated PR.md verification lines and added integration coverage to ensure script argument values are not surfaced in the draft body.
+Tests: dotnet build Ringmaster.sln; dotnet test Ringmaster.sln; ./src/Ringmaster.App/bin/Debug/net10.0/ringmaster --help; bash -n scripts/dev/*.sh
+Files: src/Ringmaster.Codex/PullRequestDraftBuilder.cs; tests/Ringmaster.IntegrationTests/PhaseFiveIntegrationTests.cs
+Follow-ups: If operators need deeper verification diagnostics in PR content, add an explicit redaction-aware allowlist format instead of restoring raw argument output.
+```
+
+
 ---
 
 ## Immediate next step
@@ -1094,10 +1105,31 @@ All planned v1 implementation packets are complete. Pull from the deferred list 
 [8]: https://developers.openai.com/codex/guides/agents-md/?utm_source=chatgpt.com "Custom instructions with AGENTS.md"
 
 ```text
+2026-03-15 21:32 UTC
+Packet: P10.1
+Summary: Hardened run-id handling for queue resume by rejecting unsafe persisted run IDs before abandoned-run reads/writes and by enforcing safe path-segment validation inside SaveRunAsync; added repository test coverage for traversal rejection.
+Tests: dotnet build Ringmaster.sln (fails: dotnet not installed in environment); dotnet test Ringmaster.sln (fails: dotnet not installed in environment); ./src/Ringmaster.App/bin/Debug/net10.0/ringmaster --help (fails: binary not present because dotnet build cannot run); bash -n scripts/dev/*.sh
+Files: src/Ringmaster.Core/Jobs/JobEngine.cs; src/Ringmaster.Infrastructure/Persistence/LocalFilesystemJobRepository.cs; tests/Ringmaster.IntegrationTests/LocalFilesystemJobRepositoryTests.cs
+Follow-ups: When dotnet is available, rerun full build/test/help smoke to confirm behavior end-to-end.
+
+2026-03-15 21:34 UTC
+Packet: P9.security.cleanup-path-validation
+Summary: Hardened cleanup worktree deletion by rejecting persisted worktree paths outside Ringmaster’s managed worktree root before invoking forced git worktree removal, and added integration coverage for tampered status paths.
+Tests: dotnet build Ringmaster.sln (failed: dotnet not installed in container); dotnet test Ringmaster.sln (failed: dotnet not installed in container); ./src/Ringmaster.App/bin/Debug/net10.0/ringmaster --help (failed: binary missing because build could not run); bash -n scripts/dev/*.sh
+Files: src/Ringmaster.Git/CleanupService.cs; tests/Ringmaster.IntegrationTests/PhaseSevenIntegrationTests.cs; planning/IMPLEMENTATION.md
+Follow-ups: Re-run full build/test/help smoke once .NET SDK is available to validate end-to-end behavior in a provisioned environment.
+
 2026-03-15 21:45 UTC
 Packet: Security hotfix (Codex writable scope)
-Summary: Narrowed Codex additional writable directories from the full job root to each run directory for planner/implementer/repairer/reviewer stages, updated prompts to reflect run-directory write scope, and added integration assertions that planner and implementer requests only pass their run directories.
-Tests: dotnet build Ringmaster.sln (fails: dotnet not installed in container); dotnet test Ringmaster.sln (fails: dotnet not installed in container); ./src/Ringmaster.App/bin/Debug/net10.0/ringmaster --help (fails: binary not built in this environment); bash -n scripts/dev/*.sh
-Files: src/Ringmaster.Codex/PlanningStageRunner.cs; src/Ringmaster.Codex/ImplementingStageRunner.cs; src/Ringmaster.Codex/RepairingStageRunner.cs; src/Ringmaster.Codex/ReviewingStageRunner.cs; src/Ringmaster.Codex/CodexPromptBuilder.cs; tests/Ringmaster.IntegrationTests/PhaseFourIntegrationTests.cs
-Follow-ups: Re-run full build/test/CLI smoke in an environment with the .NET SDK installed.
+Summary: Narrowed Codex additional writable directories from the full job root to each run directory for planner/implementer/repairer/reviewer stages, updated prompts to reflect run-directory write scope, and added integration assertions that planner, implementer, repairer, and reviewer requests only pass their run directories.
+Tests: dotnet test tests/Ringmaster.IntegrationTests/Ringmaster.IntegrationTests.csproj --filter "FullyQualifiedName~PhaseFourIntegrationTests|FullyQualifiedName~PhaseFiveIntegrationTests|FullyQualifiedName~PhaseSevenIntegrationTests|FullyQualifiedName~CodexPromptBuilderSchemaTests|FullyQualifiedName~LocalFilesystemJobRepositoryTests"
+Files: src/Ringmaster.Codex/PlanningStageRunner.cs; src/Ringmaster.Codex/ImplementingStageRunner.cs; src/Ringmaster.Codex/RepairingStageRunner.cs; src/Ringmaster.Codex/ReviewingStageRunner.cs; src/Ringmaster.Codex/CodexPromptBuilder.cs; tests/Ringmaster.IntegrationTests/PhaseFourIntegrationTests.cs; tests/Ringmaster.IntegrationTests/PhaseFiveIntegrationTests.cs
+Follow-ups: None.
+
+2026-03-15 21:46 UTC
+Packet: Security fix - job id path traversal
+Summary: Confirmed unvalidated job identifiers still reached filesystem path builders, then added centralized RingmasterPaths job-id validation that rejects rooted and segmented paths before any job file read/write, plus integration coverage for traversal-shaped identifiers.
+Tests: dotnet build Ringmaster.sln (fails: dotnet not installed); dotnet test Ringmaster.sln (fails: dotnet not installed); ./src/Ringmaster.App/bin/Debug/net10.0/ringmaster --help (fails: binary missing because build unavailable); bash -n scripts/dev/*.sh
+Files: src/Ringmaster.Infrastructure/Persistence/LocalFilesystemJobRepository.cs; tests/Ringmaster.IntegrationTests/LocalFilesystemJobRepositoryTests.cs
+Follow-ups: When a .NET SDK is available in CI/dev shell, rerun full build and test validation to confirm green end-to-end.
 ```
