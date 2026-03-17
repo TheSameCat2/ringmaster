@@ -17,7 +17,7 @@ public sealed class CodexPromptBuilder
         Workspace paths:
         - Worktree root: `{worktreePath}`
         - Job directory: `{context.Job.JobDirectoryPath}`
-        - Writable directory: `{context.Job.JobDirectoryPath}`
+        - Writable directory: `{context.RunDirectoryPath}`
         - Forbidden: `.ringmaster/jobs/**/STATUS.json`, git commits, PR creation
 
         Read this material in order:
@@ -166,7 +166,7 @@ public sealed class CodexPromptBuilder
         prompt.AppendLine("Workspace paths:");
         prompt.AppendLine($"- Worktree root: `{worktreePath}`");
         prompt.AppendLine($"- Job directory: `{context.Job.JobDirectoryPath}`");
-        prompt.AppendLine($"- Writable directories: `{worktreePath}` and `{context.Job.JobDirectoryPath}`");
+        prompt.AppendLine($"- Writable directories: `{worktreePath}` and `{context.RunDirectoryPath}`");
         prompt.AppendLine("- Forbidden: `.ringmaster/jobs/**/STATUS.json`, commits, PR creation");
         prompt.AppendLine();
         prompt.AppendLine(readHeading);

@@ -53,7 +53,7 @@ public sealed class PlanningStageRunner(
             {
                 Kind = AgentRunKind.Planner,
                 WorkingDirectory = preparation.GitSnapshot?.WorktreePath ?? throw new InvalidOperationException("Prepared git snapshot did not include a worktree path."),
-                AdditionalWritableDirectories = [context.Job.JobDirectoryPath],
+                AdditionalWritableDirectories = [context.RunDirectoryPath],
                 RunDirectoryPath = context.RunDirectoryPath,
                 PromptText = prompt.PromptText,
                 OutputSchemaJson = prompt.OutputSchemaJson,

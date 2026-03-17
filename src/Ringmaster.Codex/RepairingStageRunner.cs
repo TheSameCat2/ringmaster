@@ -50,7 +50,7 @@ public sealed class RepairingStageRunner(
             {
                 Kind = AgentRunKind.Repairer,
                 WorkingDirectory = worktreePath,
-                AdditionalWritableDirectories = [context.Job.JobDirectoryPath],
+                AdditionalWritableDirectories = [context.RunDirectoryPath],
                 RunDirectoryPath = context.RunDirectoryPath,
                 PromptText = prompt.PromptText,
                 OutputSchemaJson = prompt.OutputSchemaJson,

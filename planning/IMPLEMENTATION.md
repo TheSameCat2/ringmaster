@@ -1119,6 +1119,13 @@ Tests: dotnet build Ringmaster.sln (failed: dotnet not installed in container); 
 Files: src/Ringmaster.Git/CleanupService.cs; tests/Ringmaster.IntegrationTests/PhaseSevenIntegrationTests.cs; planning/IMPLEMENTATION.md
 Follow-ups: Re-run full build/test/help smoke once .NET SDK is available to validate end-to-end behavior in a provisioned environment.
 
+2026-03-15 21:45 UTC
+Packet: Security hotfix (Codex writable scope)
+Summary: Narrowed Codex additional writable directories from the full job root to each run directory for planner/implementer/repairer/reviewer stages, updated prompts to reflect run-directory write scope, and added integration assertions that planner, implementer, repairer, and reviewer requests only pass their run directories.
+Tests: dotnet test tests/Ringmaster.IntegrationTests/Ringmaster.IntegrationTests.csproj --filter "FullyQualifiedName~PhaseFourIntegrationTests|FullyQualifiedName~PhaseFiveIntegrationTests|FullyQualifiedName~PhaseSevenIntegrationTests|FullyQualifiedName~CodexPromptBuilderSchemaTests|FullyQualifiedName~LocalFilesystemJobRepositoryTests"
+Files: src/Ringmaster.Codex/PlanningStageRunner.cs; src/Ringmaster.Codex/ImplementingStageRunner.cs; src/Ringmaster.Codex/RepairingStageRunner.cs; src/Ringmaster.Codex/ReviewingStageRunner.cs; src/Ringmaster.Codex/CodexPromptBuilder.cs; tests/Ringmaster.IntegrationTests/PhaseFourIntegrationTests.cs; tests/Ringmaster.IntegrationTests/PhaseFiveIntegrationTests.cs
+Follow-ups: None.
+
 2026-03-15 21:46 UTC
 Packet: Security fix - job id path traversal
 Summary: Confirmed unvalidated job identifiers still reached filesystem path builders, then added centralized RingmasterPaths job-id validation that rejects rooted and segmented paths before any job file read/write, plus integration coverage for traversal-shaped identifiers.
