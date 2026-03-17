@@ -18,6 +18,11 @@ public static class VerificationCommandSafetyPolicy
         "publish",
     };
 
+    private static readonly HashSet<string> AllowedDotnetStandaloneArguments = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "--version",
+    };
+
     public static bool TryValidate(VerificationCommandDefinition command, out string reason)
     {
         if (IsUnsafeOverrideEnabled())
@@ -32,9 +37,15 @@ public static class VerificationCommandSafetyPolicy
             return false;
         }
 
+        if (command.Arguments.Count == 1 && AllowedDotnetStandaloneArguments.Contains(command.Arguments[0]))
+        {
+            reason = string.Empty;
+            return true;
+        }
+
         if (command.Arguments.Count == 0 || !AllowedDotnetVerbs.Contains(command.Arguments[0]))
         {
-            reason = $"Verification command '{command.Name}' must start with one of: {string.Join(", ", AllowedDotnetVerbs.OrderBy(verb => verb, StringComparer.OrdinalIgnoreCase))}.";
+            reason = $"Verification command '{command.Name}' must start with one of: {string.Join(", ", AllowedDotnetVerbs.OrderBy(verb => verb, StringComparer.OrdinalIgnoreCase))}, or use one of: {string.Join(", ", AllowedDotnetStandaloneArguments.OrderBy(argument => argument, StringComparer.OrdinalIgnoreCase))}.";
             return false;
         }
 
@@ -45,7 +56,6 @@ public static class VerificationCommandSafetyPolicy
     private static bool IsUnsafeOverrideEnabled()
     {
         string? value = Environment.GetEnvironmentVariable(UnsafeOverrideEnvironmentVariableName);
-        return string.Equals(value, "1", StringComparison.Ordinal)
-            || string.Equals(value, "true", StringComparison.OrdinalIgnoreCase);
+        return value == "1" || (bool.TryParse(value, out bool enabled) && enabled);
     }
 }

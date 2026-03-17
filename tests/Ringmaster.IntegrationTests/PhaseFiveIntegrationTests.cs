@@ -10,16 +10,14 @@ using Ringmaster.IntegrationTests.Testing;
 
 namespace Ringmaster.IntegrationTests;
 
+[Collection(nameof(UnsafeVerificationCommandCollection))]
 public sealed class PhaseFiveIntegrationTests
 {
-    static PhaseFiveIntegrationTests()
-    {
-        Environment.SetEnvironmentVariable(VerificationCommandSafetyPolicy.UnsafeOverrideEnvironmentVariableName, "1");
-    }
 
     [Fact]
     public async Task CompileFailureTransitionsThroughRepairAndReachesReadyForPr()
     {
+        using UnsafeVerificationCommandOverrideScope _ = new();
         using TemporaryGitRepository repositoryRoot = new();
         await repositoryRoot.InitializeAsync();
         await PrepareScriptedVerificationRepoAsync(repositoryRoot);
@@ -122,13 +120,18 @@ public sealed class PhaseFiveIntegrationTests
         Assert.Equal("verify:compile:CS0103:Program.cs", status.LastFailure?.Signature);
         Assert.True(File.Exists(Path.Combine(storedJob.JobDirectoryPath, "artifacts", "repair-summary.json")));
         Assert.True(File.Exists(Path.Combine(storedJob.JobDirectoryPath, "REVIEW.md")));
-        Assert.True(File.Exists(Path.Combine(storedJob.JobDirectoryPath, "PR.md")));
+        string pullRequestDraftPath = Path.Combine(storedJob.JobDirectoryPath, "PR.md");
+        Assert.True(File.Exists(pullRequestDraftPath));
+        string pullRequestDraft = await File.ReadAllTextAsync(pullRequestDraftPath);
+        Assert.DoesNotContain("verify-compile", pullRequestDraft, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("verify-tests", pullRequestDraft, StringComparison.OrdinalIgnoreCase);
         Assert.Equal(1, implementerCalls);
     }
 
     [Fact]
     public async Task TestFailureTransitionsThroughRepairAndReachesReadyForPr()
     {
+        using UnsafeVerificationCommandOverrideScope _ = new();
         using TemporaryGitRepository repositoryRoot = new();
         await repositoryRoot.InitializeAsync();
         await PrepareScriptedVerificationRepoAsync(repositoryRoot);
@@ -229,6 +232,7 @@ public sealed class PhaseFiveIntegrationTests
     [Fact]
     public async Task RepeatedSameFailureSignatureBlocksTheJob()
     {
+        using UnsafeVerificationCommandOverrideScope _ = new();
         using TemporaryGitRepository repositoryRoot = new();
         await repositoryRoot.InitializeAsync();
         await PrepareScriptedVerificationRepoAsync(repositoryRoot);
@@ -318,6 +322,7 @@ public sealed class PhaseFiveIntegrationTests
     [Fact]
     public async Task ReviewerCanRequestRepairBeforeApproving()
     {
+        using UnsafeVerificationCommandOverrideScope _ = new();
         using TemporaryGitRepository repositoryRoot = new();
         await repositoryRoot.InitializeAsync();
         await PrepareScriptedVerificationRepoAsync(repositoryRoot);
@@ -673,5 +678,23 @@ public sealed class PhaseFiveIntegrationTests
 
         return script.Replace("\r\n", "\n", StringComparison.Ordinal)
             .Replace("\n", "\r\n", StringComparison.Ordinal);
+    }
+}
+
+[CollectionDefinition(nameof(UnsafeVerificationCommandCollection), DisableParallelization = true)]
+public sealed class UnsafeVerificationCommandCollection;
+
+internal sealed class UnsafeVerificationCommandOverrideScope : IDisposable
+{
+    private readonly string? _previousValue = Environment.GetEnvironmentVariable(VerificationCommandSafetyPolicy.UnsafeOverrideEnvironmentVariableName);
+
+    public UnsafeVerificationCommandOverrideScope()
+    {
+        Environment.SetEnvironmentVariable(VerificationCommandSafetyPolicy.UnsafeOverrideEnvironmentVariableName, "1");
+    }
+
+    public void Dispose()
+    {
+        Environment.SetEnvironmentVariable(VerificationCommandSafetyPolicy.UnsafeOverrideEnvironmentVariableName, _previousValue);
     }
 }

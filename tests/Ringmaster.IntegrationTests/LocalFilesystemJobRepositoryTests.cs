@@ -68,6 +68,38 @@ public sealed class LocalFilesystemJobRepositoryTests
         Assert.Equal(storedJob.Definition.Title, rebuilt.Title);
     }
 
+
+    [Fact]
+    public async Task SaveRunAsyncRejectsTraversalRunId()
+    {
+        using TemporaryDirectory temporaryDirectory = new();
+        DateTimeOffset createdAt = new(2026, 3, 15, 16, 45, 0, TimeSpan.Zero);
+        LocalFilesystemJobRepository repository = CreateRepository(temporaryDirectory.Path, createdAt);
+
+        StoredJob storedJob = await repository.CreateAsync(
+            new JobCreateRequest
+            {
+                Title = "Add retry handling",
+                Description = "Implement bounded retries for retryable failures.",
+                CreatedBy = "tester",
+            },
+            CancellationToken.None);
+
+        JobRunRecord run = new()
+        {
+            RunId = "../../outside",
+            JobId = storedJob.Definition.JobId,
+            Stage = JobStage.IMPLEMENTING,
+            Role = StageRole.Implementer,
+            Attempt = 1,
+            StartedAtUtc = createdAt,
+            Tool = "codex",
+            Command = ["exec"],
+        };
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => repository.SaveRunAsync(storedJob.Definition.JobId, run, CancellationToken.None));
+    }
+
     [Fact]
     public async Task AtomicWriterOverwritesFileWithoutLeavingTemporaryArtifacts()
     {
@@ -83,6 +115,24 @@ public sealed class LocalFilesystemJobRepositoryTests
 
         Assert.Equal("second", content);
         Assert.Empty(tempFiles);
+    }
+
+    [Theory]
+    [InlineData(".")]
+    [InlineData("..")]
+    [InlineData("../escape")]
+    [InlineData("..\\escape")]
+    [InlineData("/tmp/escape")]
+    [InlineData("C:\\temp\\escape")]
+    [InlineData("nested/job")]
+    [InlineData("nested\\job")]
+    public async Task GetAsyncRejectsPathTraversalOrRootedJobIdentifiers(string jobId)
+    {
+        using TemporaryDirectory temporaryDirectory = new();
+        DateTimeOffset createdAt = new(2026, 3, 15, 16, 45, 0, TimeSpan.Zero);
+        LocalFilesystemJobRepository repository = CreateRepository(temporaryDirectory.Path, createdAt);
+
+        await Assert.ThrowsAsync<ArgumentException>(() => repository.GetAsync(jobId, CancellationToken.None));
     }
 
     private static LocalFilesystemJobRepository CreateRepository(string repositoryRoot, DateTimeOffset createdAt)
