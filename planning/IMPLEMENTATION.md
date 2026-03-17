@@ -1111,4 +1111,11 @@ Summary: Hardened run-id handling for queue resume by rejecting unsafe persisted
 Tests: dotnet build Ringmaster.sln (fails: dotnet not installed in environment); dotnet test Ringmaster.sln (fails: dotnet not installed in environment); ./src/Ringmaster.App/bin/Debug/net10.0/ringmaster --help (fails: binary not present because dotnet build cannot run); bash -n scripts/dev/*.sh
 Files: src/Ringmaster.Core/Jobs/JobEngine.cs; src/Ringmaster.Infrastructure/Persistence/LocalFilesystemJobRepository.cs; tests/Ringmaster.IntegrationTests/LocalFilesystemJobRepositoryTests.cs
 Follow-ups: When dotnet is available, rerun full build/test/help smoke to confirm behavior end-to-end.
+
+2026-03-15 21:46 UTC
+Packet: Security fix - job id path traversal
+Summary: Confirmed unvalidated job identifiers still reached filesystem path builders, then added centralized RingmasterPaths job-id validation that rejects rooted and segmented paths before any job file read/write, plus integration coverage for traversal-shaped identifiers.
+Tests: dotnet build Ringmaster.sln (fails: dotnet not installed); dotnet test Ringmaster.sln (fails: dotnet not installed); ./src/Ringmaster.App/bin/Debug/net10.0/ringmaster --help (fails: binary missing because build unavailable); bash -n scripts/dev/*.sh
+Files: src/Ringmaster.Infrastructure/Persistence/LocalFilesystemJobRepository.cs; tests/Ringmaster.IntegrationTests/LocalFilesystemJobRepositoryTests.cs
+Follow-ups: When a .NET SDK is available in CI/dev shell, rerun full build and test validation to confirm green end-to-end.
 ```
