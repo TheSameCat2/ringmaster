@@ -6,36 +6,40 @@ namespace Ringmaster.IntegrationTests;
 
 public sealed class CodexPromptBuilderSchemaTests
 {
-    [Fact]
-    public void PromptSchemasRequireEveryTopLevelPropertyForCodexStructuredOutputs()
+    public static IEnumerable<object[]> SchemaCases()
     {
         CodexPromptBuilder builder = new();
         StageExecutionContext context = CreateContext();
 
-        string[] schemas =
-        [
-            builder.BuildPlannerPrompt(context).OutputSchemaJson,
-            builder.BuildImplementerPrompt(context).OutputSchemaJson,
-            builder.BuildRepairPrompt(context).OutputSchemaJson,
-            builder.BuildReviewerPrompt(context).OutputSchemaJson,
-        ];
+        yield return [nameof(CodexPromptBuilder.BuildPlannerPrompt), builder.BuildPlannerPrompt(context).OutputSchemaJson];
+        yield return [nameof(CodexPromptBuilder.BuildImplementerPrompt), builder.BuildImplementerPrompt(context).OutputSchemaJson];
+        yield return [nameof(CodexPromptBuilder.BuildRepairPrompt), builder.BuildRepairPrompt(context).OutputSchemaJson];
+        yield return [nameof(CodexPromptBuilder.BuildReviewerPrompt), builder.BuildReviewerPrompt(context).OutputSchemaJson];
+    }
 
-        foreach (string schemaJson in schemas)
-        {
-            using JsonDocument document = JsonDocument.Parse(schemaJson);
-            JsonElement root = document.RootElement;
-            HashSet<string> required = root.GetProperty("required")
-                .EnumerateArray()
-                .Select(static item => item.GetString())
-                .OfType<string>()
-                .ToHashSet(StringComparer.Ordinal);
+    [Theory]
+    [MemberData(nameof(SchemaCases))]
+    public void PromptSchemasRequireExactlyTheDefinedTopLevelPropertiesForCodexStructuredOutputs(
+        string schemaName,
+        string schemaJson)
+    {
+        _ = schemaName;
+        using JsonDocument document = JsonDocument.Parse(schemaJson);
+        JsonElement root = document.RootElement;
+        string[] required = root.GetProperty("required")
+            .EnumerateArray()
+            .Select(static item => item.GetString())
+            .OfType<string>()
+            .OrderBy(static item => item, StringComparer.Ordinal)
+            .ToArray();
 
-            JsonElement.ObjectEnumerator properties = root.GetProperty("properties").EnumerateObject();
-            foreach (JsonProperty property in properties)
-            {
-                Assert.Contains(property.Name, required);
-            }
-        }
+        string[] properties = root.GetProperty("properties")
+            .EnumerateObject()
+            .Select(static property => property.Name)
+            .OrderBy(static item => item, StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.Equal(properties, required);
     }
 
     private static StageExecutionContext CreateContext()
