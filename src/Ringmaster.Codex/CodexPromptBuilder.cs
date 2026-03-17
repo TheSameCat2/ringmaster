@@ -29,6 +29,8 @@ public sealed class CodexPromptBuilder
         - Do not edit code in the worktree.
         - Do not edit `STATUS.json`.
         - Do not commit or open PRs.
+        - Do not generate images, diagrams, or visual artifacts.
+        - Return only JSON output matching the provided schema exactly.
         - If you need human input, return a blocked result with questions.
 
         Completion checklist:
@@ -204,7 +206,7 @@ public sealed class CodexPromptBuilder
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
           "additionalProperties": false,
-          "required": ["result", "summary", "planMarkdown", "needsHuman", "blockerReasonCode", "blockerSummary", "questions"],
+          "required": ["result", "summary", "planMarkdown", "needsHuman", "questions", "blockerReasonCode", "blockerSummary"],
           "properties": {
             "result": { "type": "string", "enum": ["completed", "blocked"] },
             "summary": { "type": "string" },
@@ -228,7 +230,7 @@ public sealed class CodexPromptBuilder
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
           "additionalProperties": false,
-          "required": ["result", "summary", "filesModified", "recommendedNextChecks", "needsHuman", "blockerReasonCode", "blockerSummary", "questions"],
+          "required": ["result", "summary", "filesModified", "recommendedNextChecks", "needsHuman", "questions", "blockerReasonCode", "blockerSummary"],
           "properties": {
             "result": { "type": "string", "enum": ["completed", "blocked"] },
             "summary": { "type": "string" },
@@ -259,7 +261,7 @@ public sealed class CodexPromptBuilder
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
           "additionalProperties": false,
-          "required": ["verdict", "risk", "summary", "findings", "requiredRepairs", "recommendedPrMode", "needsHuman", "blockerSummary", "questions"],
+          "required": ["verdict", "summary", "findings", "requiredRepairs", "needsHuman", "risk", "recommendedPrMode", "blockerSummary", "questions"],
           "properties": {
             "verdict": { "type": "string", "enum": ["approve", "request_repair", "human_review_required"] },
             "risk": { "type": ["string", "null"], "enum": ["low", "medium", "high", null] },
