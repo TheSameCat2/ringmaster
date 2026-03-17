@@ -261,7 +261,7 @@ public sealed class CodexPromptBuilder
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
           "additionalProperties": false,
-          "required": ["verdict", "summary", "findings", "requiredRepairs", "needsHuman", "risk", "recommendedPrMode"],
+          "required": ["verdict", "summary", "findings", "requiredRepairs", "needsHuman", "risk", "recommendedPrMode", "blockerSummary", "questions"],
           "properties": {
             "verdict": { "type": "string", "enum": ["approve", "request_repair", "human_review_required"] },
             "risk": { "type": ["string", "null"], "enum": ["low", "medium", "high", null] },
