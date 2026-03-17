@@ -10,11 +10,14 @@ using Ringmaster.IntegrationTests.Testing;
 
 namespace Ringmaster.IntegrationTests;
 
+[Collection(nameof(UnsafeVerificationCommandCollection))]
 public sealed class PhaseFiveIntegrationTests
 {
+
     [Fact]
     public async Task CompileFailureTransitionsThroughRepairAndReachesReadyForPr()
     {
+        using UnsafeVerificationCommandOverrideScope _ = new();
         using TemporaryGitRepository repositoryRoot = new();
         await repositoryRoot.InitializeAsync();
         await PrepareScriptedVerificationRepoAsync(repositoryRoot);
@@ -139,6 +142,7 @@ public sealed class PhaseFiveIntegrationTests
     [Fact]
     public async Task TestFailureTransitionsThroughRepairAndReachesReadyForPr()
     {
+        using UnsafeVerificationCommandOverrideScope _ = new();
         using TemporaryGitRepository repositoryRoot = new();
         await repositoryRoot.InitializeAsync();
         await PrepareScriptedVerificationRepoAsync(repositoryRoot);
@@ -239,6 +243,7 @@ public sealed class PhaseFiveIntegrationTests
     [Fact]
     public async Task RepeatedSameFailureSignatureBlocksTheJob()
     {
+        using UnsafeVerificationCommandOverrideScope _ = new();
         using TemporaryGitRepository repositoryRoot = new();
         await repositoryRoot.InitializeAsync();
         await PrepareScriptedVerificationRepoAsync(repositoryRoot);
@@ -328,6 +333,7 @@ public sealed class PhaseFiveIntegrationTests
     [Fact]
     public async Task ReviewerCanRequestRepairBeforeApproving()
     {
+        using UnsafeVerificationCommandOverrideScope _ = new();
         using TemporaryGitRepository repositoryRoot = new();
         await repositoryRoot.InitializeAsync();
         await PrepareScriptedVerificationRepoAsync(repositoryRoot);
@@ -683,5 +689,23 @@ public sealed class PhaseFiveIntegrationTests
 
         return script.Replace("\r\n", "\n", StringComparison.Ordinal)
             .Replace("\n", "\r\n", StringComparison.Ordinal);
+    }
+}
+
+[CollectionDefinition(nameof(UnsafeVerificationCommandCollection), DisableParallelization = true)]
+public sealed class UnsafeVerificationCommandCollection;
+
+internal sealed class UnsafeVerificationCommandOverrideScope : IDisposable
+{
+    private readonly string? _previousValue = Environment.GetEnvironmentVariable(VerificationCommandSafetyPolicy.UnsafeOverrideEnvironmentVariableName);
+
+    public UnsafeVerificationCommandOverrideScope()
+    {
+        Environment.SetEnvironmentVariable(VerificationCommandSafetyPolicy.UnsafeOverrideEnvironmentVariableName, "1");
+    }
+
+    public void Dispose()
+    {
+        Environment.SetEnvironmentVariable(VerificationCommandSafetyPolicy.UnsafeOverrideEnvironmentVariableName, _previousValue);
     }
 }

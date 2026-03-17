@@ -1132,4 +1132,11 @@ Summary: Confirmed unvalidated job identifiers still reached filesystem path bui
 Tests: dotnet build Ringmaster.sln (fails: dotnet not installed); dotnet test Ringmaster.sln (fails: dotnet not installed); ./src/Ringmaster.App/bin/Debug/net10.0/ringmaster --help (fails: binary missing because build unavailable); bash -n scripts/dev/*.sh
 Files: src/Ringmaster.Infrastructure/Persistence/LocalFilesystemJobRepository.cs; tests/Ringmaster.IntegrationTests/LocalFilesystemJobRepositoryTests.cs
 Follow-ups: When a .NET SDK is available in CI/dev shell, rerun full build and test validation to confirm green end-to-end.
+
+2026-03-15 22:05 UTC
+Packet: Security hotfix - verification command safety policy
+Summary: Added validation that only approved verification command shapes are executed by default, kept harmless `dotnet --version` checks working, scoped the scripted-fixture unsafe override to the phase-five tests, and expanded policy coverage for casing/no-argument edge cases.
+Tests: dotnet test Ringmaster.sln
+Files: src/Ringmaster.Core/Configuration/VerificationCommandSafetyPolicy.cs; src/Ringmaster.Git/RepositoryPreparationService.cs; src/Ringmaster.Git/VerifyingStageRunner.cs; tests/Ringmaster.Core.Tests/VerificationCommandSafetyPolicyTests.cs; tests/Ringmaster.IntegrationTests/PhaseFiveIntegrationTests.cs; tests/Ringmaster.IntegrationTests/Testing/TemporaryGitRepository.cs
+Follow-ups: Consider introducing an operator-managed trusted-repository setting instead of an environment variable override for advanced verification scenarios.
 ```

@@ -37,6 +37,14 @@ public sealed class RepositoryPreparationService(
             return BlockedForMissingConfig($"Verification profile '{verificationProfile}' is not configured.", JobState.PREPARING);
         }
 
+        foreach (VerificationCommandDefinition command in profile.Commands)
+        {
+            if (!VerificationCommandSafetyPolicy.TryValidate(command, out string reason))
+            {
+                return BlockedForMissingConfig(reason, JobState.PREPARING);
+            }
+        }
+
         string baseBranch = string.IsNullOrWhiteSpace(job.Definition.Repo.BaseBranch)
             ? config.BaseBranch
             : job.Definition.Repo.BaseBranch;
