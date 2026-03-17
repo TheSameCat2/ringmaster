@@ -186,6 +186,11 @@ public sealed class LocalFilesystemJobRepository(
 
     public async Task SaveRunAsync(string jobId, JobRunRecord run, CancellationToken cancellationToken)
     {
+        if (!RingmasterPaths.IsSafePathSegment(run.RunId))
+        {
+            throw new InvalidOperationException($"Run id '{run.RunId}' is not a safe filesystem path segment.");
+        }
+
         string runDirectory = RingmasterPaths.RunDirectoryPath(_repositoryRoot, jobId, run.RunId);
         Directory.CreateDirectory(runDirectory);
         await atomicFileWriter.WriteJsonAsync(RingmasterPaths.RunRecordPath(_repositoryRoot, jobId, run.RunId), run, cancellationToken);
@@ -252,7 +257,12 @@ internal static class RingmasterPaths
     public static string RingmasterRoot(string repositoryRoot) => Path.Combine(repositoryRoot, ProductInfo.RuntimeDirectoryName);
     public static string RuntimeRoot(string repositoryRoot) => Path.Combine(RingmasterRoot(repositoryRoot), "runtime");
     public static string JobsRoot(string repositoryRoot) => Path.Combine(RingmasterRoot(repositoryRoot), "jobs");
-    public static string JobRoot(string repositoryRoot, string jobId) => Path.Combine(JobsRoot(repositoryRoot), jobId);
+
+    public static string JobRoot(string repositoryRoot, string jobId)
+    {
+        ValidateJobId(jobId);
+        return Path.Combine(JobsRoot(repositoryRoot), jobId);
+    }
     public static string JobDefinitionPath(string repositoryRoot, string jobId) => Path.Combine(JobRoot(repositoryRoot, jobId), "JOB.json");
     public static string JobMarkdownPath(string repositoryRoot, string jobId) => Path.Combine(JobRoot(repositoryRoot, jobId), "JOB.md");
     public static string StatusPath(string repositoryRoot, string jobId) => Path.Combine(JobRoot(repositoryRoot, jobId), "STATUS.json");
@@ -261,7 +271,39 @@ internal static class RingmasterPaths
     public static string ReviewPath(string repositoryRoot, string jobId) => Path.Combine(JobRoot(repositoryRoot, jobId), "REVIEW.md");
     public static string PullRequestPath(string repositoryRoot, string jobId) => Path.Combine(JobRoot(repositoryRoot, jobId), "PR.md");
     public static string EventLogPath(string repositoryRoot, string jobId) => Path.Combine(JobRoot(repositoryRoot, jobId), "events", "events.jsonl");
+
+    public static bool IsSafePathSegment(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value) || Path.IsPathRooted(value))
+        {
+            return false;
+        }
+
+        return value.IndexOf(Path.DirectorySeparatorChar) < 0
+            && value.IndexOf(Path.AltDirectorySeparatorChar) < 0
+            && !value.Contains("..", StringComparison.Ordinal);
+    }
+
     public static string RunDirectoryPath(string repositoryRoot, string jobId, string runId) => Path.Combine(JobRoot(repositoryRoot, jobId), "runs", runId);
     public static string RunRecordPath(string repositoryRoot, string jobId, string runId) => Path.Combine(RunDirectoryPath(repositoryRoot, jobId, runId), "run.json");
     public static string NotificationsPath(string repositoryRoot) => Path.Combine(RuntimeRoot(repositoryRoot), "notifications.jsonl");
+
+    private static void ValidateJobId(string jobId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(jobId);
+
+        if (Path.IsPathRooted(jobId)
+            || jobId.Contains(Path.DirectorySeparatorChar)
+            || jobId.Contains(Path.AltDirectorySeparatorChar)
+            || jobId.Contains('\\')
+            || jobId is "." or "..")
+        {
+            throw new ArgumentException("Job identifiers must be a single relative directory name.", nameof(jobId));
+        }
+
+        if (jobId.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
+        {
+            throw new ArgumentException("Job identifiers contain invalid path characters.", nameof(jobId));
+        }
+    }
 }

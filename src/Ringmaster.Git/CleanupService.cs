@@ -113,7 +113,15 @@ public sealed class CleanupService(
                 "No worktree path was recorded for this job.");
         }
 
-        string fullWorktreePath = Path.GetFullPath(worktreePath);
+        if (!TryNormalizeWorktreePath(worktreePath, out string fullWorktreePath))
+        {
+            return CreateResult(
+                storedJob,
+                CleanupDisposition.SkippedInvalidWorktreePath,
+                artifactFilesRemoved,
+                $"Recorded worktree path '{worktreePath}' is not a valid filesystem path.");
+        }
+
         if (!IsManagedWorktreePath(fullWorktreePath))
         {
             return CreateResult(
@@ -183,7 +191,28 @@ public sealed class CleanupService(
     {
         string parentWithSeparator = EnsureTrailingSeparator(Path.GetFullPath(expectedParentDirectory));
         string candidateWithSeparator = EnsureTrailingSeparator(Path.GetFullPath(candidatePath));
-        return candidateWithSeparator.StartsWith(parentWithSeparator, StringComparison.Ordinal);
+        return candidateWithSeparator.StartsWith(parentWithSeparator, GetPathComparison());
+    }
+
+    private static bool TryNormalizeWorktreePath(string worktreePath, out string normalizedPath)
+    {
+        try
+        {
+            normalizedPath = Path.GetFullPath(worktreePath);
+            return true;
+        }
+        catch (Exception exception) when (exception is ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            normalizedPath = string.Empty;
+            return false;
+        }
+    }
+
+    private static StringComparison GetPathComparison()
+    {
+        return OperatingSystem.IsWindows()
+            ? StringComparison.OrdinalIgnoreCase
+            : StringComparison.Ordinal;
     }
 
     private static string ComputeManagedWorktreeRoot(string repositoryRoot)

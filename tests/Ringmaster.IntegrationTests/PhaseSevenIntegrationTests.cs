@@ -294,6 +294,69 @@ public sealed class PhaseSevenIntegrationTests
     }
 
     [Fact]
+    public async Task CleanupServiceSkipsMalformedRecordedWorktreePaths()
+    {
+        using TemporaryGitRepository repositoryRoot = new();
+        await repositoryRoot.InitializeAsync();
+
+        DateTimeOffset createdAt = new(2026, 2, 1, 12, 0, 0, TimeSpan.Zero);
+        LocalFilesystemJobRepository repository = CreateRepository(repositoryRoot.Path, new StaticTimeProvider(createdAt));
+        StoredJob storedJob = await repository.CreateAsync(CreateRequest("Cleanup malformed path"), CancellationToken.None);
+
+        JobGitSnapshot tamperedSnapshot = new()
+        {
+            RepoRoot = repositoryRoot.Path,
+            BaseBranch = "master",
+            BaseCommit = "HEAD",
+            JobBranch = "ringmaster/j-invalid",
+            WorktreePath = "\0bad-path",
+        };
+
+        await repository.AppendEventAsync(
+            storedJob.Definition.JobId,
+            JobEventRecord.CreateGitStateCaptured(storedJob.Definition.JobId, tamperedSnapshot, createdAt.AddMinutes(1)),
+            CancellationToken.None);
+        await repository.AppendEventAsync(
+            storedJob.Definition.JobId,
+            JobEventRecord.CreateStateChanged(storedJob.Definition.JobId, JobState.QUEUED, JobState.READY_FOR_PR, createdAt.AddMinutes(2)),
+            CancellationToken.None);
+        await repository.AppendEventAsync(
+            storedJob.Definition.JobId,
+            JobEventRecord.CreatePullRequestRecorded(
+                storedJob.Definition.JobId,
+                PullRequestStatus.Open,
+                "https://example.test/pr/cleanup",
+                draft: false,
+                summary: "Created a pull request.",
+                createdAt.AddMinutes(3)),
+            CancellationToken.None);
+        await repository.AppendEventAsync(
+            storedJob.Definition.JobId,
+            JobEventRecord.CreateStateChanged(storedJob.Definition.JobId, JobState.READY_FOR_PR, JobState.DONE, createdAt.AddMinutes(4)),
+            CancellationToken.None);
+
+        GitCli gitCli = new(new ExternalProcessRunner(new StaticTimeProvider(new DateTimeOffset(2026, 3, 15, 12, 0, 0, TimeSpan.Zero))));
+        CleanupService cleanupService = new(
+            repositoryRoot.Path,
+            repository,
+            new FileLeaseManager(repositoryRoot.Path, new AtomicFileWriter(), new StaticTimeProvider(new DateTimeOffset(2026, 3, 15, 12, 0, 0, TimeSpan.Zero))),
+            gitCli,
+            new StaticTimeProvider(new DateTimeOffset(2026, 3, 15, 12, 0, 0, TimeSpan.Zero)));
+
+        CleanupResult result = await cleanupService.RunAsync(
+            new CleanupOptions
+            {
+                WorktreeRetention = TimeSpan.FromDays(7),
+                ArtifactRetention = TimeSpan.FromDays(30),
+            },
+            CancellationToken.None);
+
+        JobCleanupResult jobResult = Assert.Single(result.Jobs);
+        Assert.Equal(CleanupDisposition.SkippedInvalidWorktreePath, jobResult.Disposition);
+        Assert.Contains("not a valid filesystem path", jobResult.Summary, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task DoctorServiceReportsConfigFailuresWhilePassingToolChecks()
     {
         using TemporaryDirectory temporaryDirectory = new();
