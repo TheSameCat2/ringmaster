@@ -71,8 +71,10 @@ public sealed class PhaseSixIntegrationTests
         LocalFilesystemJobRepository repository = CreateRepository(temporaryDirectory.Path, timeProvider);
         StoredJob storedJob = await repository.CreateAsync(CreateRequest("Queue run job"), CancellationToken.None);
         QueueProcessor queueProcessor = CreateQueueProcessor(temporaryDirectory.Path, repository, timeProvider);
-        // GitHub's Windows runners can take noticeably longer to flush the extra filesystem I/O in the queue loop.
-        using CancellationTokenSource cancellationTokenSource = new(TimeSpan.FromSeconds(15));
+        TimeSpan readyForPrTimeout = TimeSpan.FromSeconds(10);
+        // Give the queue runner more time than the assertion window so slower Windows CI
+        // machines do not cancel the run before the job reaches READY_FOR_PR.
+        using CancellationTokenSource cancellationTokenSource = new(readyForPrTimeout + TimeSpan.FromSeconds(5));
         Exception? runTaskError = null;
 
         Task runTask = queueProcessor.RunAsync(
@@ -86,7 +88,7 @@ public sealed class PhaseSixIntegrationTests
 
         try
         {
-            await WaitForJobStateAsync(repository, storedJob.Definition.JobId, JobState.READY_FOR_PR, TimeSpan.FromSeconds(10));
+            await WaitForJobStateAsync(repository, storedJob.Definition.JobId, JobState.READY_FOR_PR, readyForPrTimeout);
         }
         finally
         {
