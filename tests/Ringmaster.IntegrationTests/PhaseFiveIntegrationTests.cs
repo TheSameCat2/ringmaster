@@ -117,7 +117,11 @@ public sealed class PhaseFiveIntegrationTests
         Assert.Equal("verify:compile:CS0103:Program.cs", status.LastFailure?.Signature);
         Assert.True(File.Exists(Path.Combine(storedJob.JobDirectoryPath, "artifacts", "repair-summary.json")));
         Assert.True(File.Exists(Path.Combine(storedJob.JobDirectoryPath, "REVIEW.md")));
-        Assert.True(File.Exists(Path.Combine(storedJob.JobDirectoryPath, "PR.md")));
+        string pullRequestDraftPath = Path.Combine(storedJob.JobDirectoryPath, "PR.md");
+        Assert.True(File.Exists(pullRequestDraftPath));
+        string pullRequestDraft = await File.ReadAllTextAsync(pullRequestDraftPath);
+        Assert.DoesNotContain("verify-compile", pullRequestDraft, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("verify-tests", pullRequestDraft, StringComparison.OrdinalIgnoreCase);
         Assert.Equal(1, implementerCalls);
     }
 
