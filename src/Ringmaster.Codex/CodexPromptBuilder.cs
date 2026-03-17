@@ -204,7 +204,7 @@ public sealed class CodexPromptBuilder
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
           "additionalProperties": false,
-          "required": ["result", "summary", "planMarkdown", "needsHuman", "questions"],
+          "required": ["result", "summary", "planMarkdown", "needsHuman", "blockerReasonCode", "blockerSummary", "questions"],
           "properties": {
             "result": { "type": "string", "enum": ["completed", "blocked"] },
             "summary": { "type": "string" },
@@ -228,7 +228,7 @@ public sealed class CodexPromptBuilder
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
           "additionalProperties": false,
-          "required": ["result", "summary", "filesModified", "recommendedNextChecks", "needsHuman", "questions"],
+          "required": ["result", "summary", "filesModified", "recommendedNextChecks", "needsHuman", "blockerReasonCode", "blockerSummary", "questions"],
           "properties": {
             "result": { "type": "string", "enum": ["completed", "blocked"] },
             "summary": { "type": "string" },
@@ -259,7 +259,7 @@ public sealed class CodexPromptBuilder
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
           "additionalProperties": false,
-          "required": ["verdict", "summary", "findings", "requiredRepairs", "needsHuman"],
+          "required": ["verdict", "risk", "summary", "findings", "requiredRepairs", "recommendedPrMode", "needsHuman", "blockerSummary", "questions"],
           "properties": {
             "verdict": { "type": "string", "enum": ["approve", "request_repair", "human_review_required"] },
             "risk": { "type": ["string", "null"], "enum": ["low", "medium", "high", null] },
