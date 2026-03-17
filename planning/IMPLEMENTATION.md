@@ -1112,6 +1112,13 @@ Tests: dotnet build Ringmaster.sln (fails: dotnet not installed in environment);
 Files: src/Ringmaster.Core/Jobs/JobEngine.cs; src/Ringmaster.Infrastructure/Persistence/LocalFilesystemJobRepository.cs; tests/Ringmaster.IntegrationTests/LocalFilesystemJobRepositoryTests.cs
 Follow-ups: When dotnet is available, rerun full build/test/help smoke to confirm behavior end-to-end.
 
+2026-03-15 21:34 UTC
+Packet: P9.security.cleanup-path-validation
+Summary: Hardened cleanup worktree deletion by rejecting persisted worktree paths outside Ringmaster’s managed worktree root before invoking forced git worktree removal, and added integration coverage for tampered status paths.
+Tests: dotnet build Ringmaster.sln (failed: dotnet not installed in container); dotnet test Ringmaster.sln (failed: dotnet not installed in container); ./src/Ringmaster.App/bin/Debug/net10.0/ringmaster --help (failed: binary missing because build could not run); bash -n scripts/dev/*.sh
+Files: src/Ringmaster.Git/CleanupService.cs; tests/Ringmaster.IntegrationTests/PhaseSevenIntegrationTests.cs; planning/IMPLEMENTATION.md
+Follow-ups: Re-run full build/test/help smoke once .NET SDK is available to validate end-to-end behavior in a provisioned environment.
+
 2026-03-15 21:46 UTC
 Packet: Security fix - job id path traversal
 Summary: Confirmed unvalidated job identifiers still reached filesystem path builders, then added centralized RingmasterPaths job-id validation that rejects rooted and segmented paths before any job file read/write, plus integration coverage for traversal-shaped identifiers.
