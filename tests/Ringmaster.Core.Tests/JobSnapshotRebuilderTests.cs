@@ -21,7 +21,7 @@ public sealed class JobSnapshotRebuilderTests
             CreatedBy = "tester",
         };
         JobStatusSnapshot initialStatus = JobStatusSnapshot.CreateInitial(definition);
-        JobEventRecord created = JobEventRecord.CreateJobCreated(1, definition, initialStatus);
+        JobEventRecord created = JobEventRecord.CreateJobCreated(0, definition, initialStatus);
         JobSnapshotRebuilder rebuilder = new();
 
         JobStatusSnapshot rebuilt = rebuilder.Rebuild([created]);

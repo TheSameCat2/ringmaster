@@ -18,6 +18,7 @@ public sealed record class JobStatusSnapshot
     public BlockerInfo? Blocker { get; init; }
     public required DateTimeOffset CreatedAtUtc { get; init; }
     public required DateTimeOffset UpdatedAtUtc { get; init; }
+    public long LastEventSequence { get; init; }
 
     public static JobStatusSnapshot CreateInitial(JobDefinition definition)
     {
@@ -39,6 +40,7 @@ public sealed record class JobStatusSnapshot
             },
             CreatedAtUtc = definition.CreatedAtUtc,
             UpdatedAtUtc = definition.CreatedAtUtc,
+            LastEventSequence = 0,
         };
     }
 }

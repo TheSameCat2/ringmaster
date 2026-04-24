@@ -1140,3 +1140,12 @@ Tests: dotnet test Ringmaster.sln
 Files: src/Ringmaster.Core/Configuration/VerificationCommandSafetyPolicy.cs; src/Ringmaster.Git/RepositoryPreparationService.cs; src/Ringmaster.Git/VerifyingStageRunner.cs; tests/Ringmaster.Core.Tests/VerificationCommandSafetyPolicyTests.cs; tests/Ringmaster.IntegrationTests/PhaseFiveIntegrationTests.cs; tests/Ringmaster.IntegrationTests/Testing/TemporaryGitRepository.cs
 Follow-ups: Consider introducing an operator-managed trusted-repository setting instead of an environment variable override for advanced verification scenarios.
 ```
+
+```text
+2026-04-24 00:00 UTC
+Packet: Performance pass - queue-scan I/O reduction and incremental status updates
+Summary: Added LastEventSequence to JobStatusSnapshot so the repository can append events without reading the full event log; exposed Apply on JobSnapshotRebuilder for incremental snapshot updates; introduced IJobRepository.GetStatusAsync for lightweight status-only reads; refactored LocalFilesystemQueueSelector to filter candidates via status first and load full StoredJob only when a job is actually runnable; simplified JsonlNotificationSink to append directly via FileStream instead of atomic overwrite.
+Tests: dotnet build Ringmaster.sln; dotnet test Ringmaster.sln
+Files: src/Ringmaster.Core/Jobs/JobStatusSnapshot.cs; src/Ringmaster.Core/Jobs/JobSnapshotRebuilder.cs; src/Ringmaster.Core/Jobs/JobContracts.cs; src/Ringmaster.Infrastructure/Persistence/LocalFilesystemJobRepository.cs; src/Ringmaster.Infrastructure/Persistence/LocalFilesystemQueueSelector.cs; src/Ringmaster.Infrastructure/Persistence/NotificationSinks.cs; src/Ringmaster.App/Program.cs; tests/Ringmaster.Core.Tests/JobSnapshotRebuilderTests.cs; tests/Ringmaster.IntegrationTests/PhaseSixIntegrationTests.cs; samples/sample-repo/.gitignore
+Follow-ups: None.
+```

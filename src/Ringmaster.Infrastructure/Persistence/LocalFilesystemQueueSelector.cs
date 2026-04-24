@@ -12,45 +12,74 @@ public sealed class LocalFilesystemQueueSelector(
         CancellationToken cancellationToken)
     {
         IReadOnlyList<JobStatusListItem> jobs = await jobRepository.ListAsync(cancellationToken);
-        List<QueueJobCandidate> runnable = [];
+        List<(JobStatusListItem Item, JobStatusSnapshot Status)> candidates = [];
 
         foreach (JobStatusListItem item in jobs)
         {
-            StoredJob? storedJob = await jobRepository.GetAsync(item.JobId, cancellationToken);
-            if (storedJob is null || storedJob.Status.NextEligibleAtUtc > nowUtc)
+            JobStatusSnapshot? status = await jobRepository.GetStatusAsync(item.JobId, cancellationToken);
+            if (status is null || status.NextEligibleAtUtc > nowUtc)
             {
                 continue;
             }
 
-            if (storedJob.Status.State is JobState.QUEUED)
+            candidates.Add((item, status));
+        }
+
+        List<QueueJobCandidate> runnable = [];
+
+        foreach ((JobStatusListItem item, JobStatusSnapshot status) in candidates)
+        {
+            if (status.State is JobState.QUEUED)
             {
-                runnable.Add(new QueueJobCandidate
+                StoredJob? storedJob = await jobRepository.GetAsync(item.JobId, cancellationToken);
+                if (storedJob is not null)
                 {
-                    Job = storedJob,
-                    ResumeExistingState = false,
-                });
+                    runnable.Add(new QueueJobCandidate
+                    {
+                        Job = storedJob,
+                        ResumeExistingState = false,
+                    });
+                }
                 continue;
             }
 
-            if (!IsActiveState(storedJob.Status.State))
+            if (!IsActiveState(status.State))
             {
                 continue;
             }
 
-            if (storedJob.Status.Execution.Status is ExecutionStatus.Running)
+            if (status.Execution.Status is ExecutionStatus.Running)
             {
+                StoredJob? storedJob = await jobRepository.GetAsync(item.JobId, cancellationToken);
+                if (storedJob is null)
+                {
+                    continue;
+                }
+
                 LeaseRecord? lease = await leaseManager.ReadJobLeaseAsync(storedJob, cancellationToken);
                 if (lease is not null && lease.HeartbeatAtUtc >= nowUtc - staleLeaseThreshold)
                 {
                     continue;
                 }
-            }
 
-            runnable.Add(new QueueJobCandidate
+                runnable.Add(new QueueJobCandidate
+                {
+                    Job = storedJob,
+                    ResumeExistingState = true,
+                });
+            }
+            else
             {
-                Job = storedJob,
-                ResumeExistingState = true,
-            });
+                StoredJob? storedJob = await jobRepository.GetAsync(item.JobId, cancellationToken);
+                if (storedJob is not null)
+                {
+                    runnable.Add(new QueueJobCandidate
+                    {
+                        Job = storedJob,
+                        ResumeExistingState = true,
+                    });
+                }
+            }
         }
 
         return runnable

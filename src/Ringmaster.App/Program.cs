@@ -98,9 +98,7 @@ builder.Services.AddSingleton<ConsoleNotificationSink>();
 builder.Services.AddSingleton<JsonlNotificationSink>(serviceProvider =>
 {
     RingmasterApplicationContext applicationContext = serviceProvider.GetRequiredService<RingmasterApplicationContext>();
-    return new JsonlNotificationSink(
-        applicationContext.RepositoryRoot,
-        serviceProvider.GetRequiredService<AtomicFileWriter>());
+    return new JsonlNotificationSink(applicationContext.RepositoryRoot);
 });
 builder.Services.AddSingleton<WebhookPlaceholderNotificationSink>();
 builder.Services.AddSingleton<INotificationSink>(serviceProvider =>

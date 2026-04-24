@@ -5,16 +5,26 @@ public sealed class JobSnapshotRebuilder
     public JobStatusSnapshot Rebuild(IEnumerable<JobEventRecord> events)
     {
         JobStatusSnapshot? snapshot = null;
+        long maxSequence = 0;
 
         foreach (JobEventRecord jobEvent in events.OrderBy(jobEvent => jobEvent.Sequence))
         {
+            if (jobEvent.Sequence > maxSequence)
+            {
+                maxSequence = jobEvent.Sequence;
+            }
             snapshot = Apply(snapshot, jobEvent);
+        }
+
+        if (snapshot is not null)
+        {
+            snapshot = snapshot with { LastEventSequence = maxSequence };
         }
 
         return snapshot ?? throw new InvalidOperationException("The event log did not contain a JobCreated event.");
     }
 
-    private static JobStatusSnapshot Apply(JobStatusSnapshot? current, JobEventRecord jobEvent)
+    public JobStatusSnapshot Apply(JobStatusSnapshot? current, JobEventRecord jobEvent)
     {
         return jobEvent.Type switch
         {

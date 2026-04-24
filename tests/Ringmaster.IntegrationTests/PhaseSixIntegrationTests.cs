@@ -122,7 +122,7 @@ public sealed class PhaseSixIntegrationTests
             leaseManager,
             new CompositeNotificationSink(
             [
-                new JsonlNotificationSink(repositoryRoot, new AtomicFileWriter()),
+                new JsonlNotificationSink(repositoryRoot),
                 new WebhookPlaceholderNotificationSink(),
             ]),
             CreateJobEngine(repository, timeProvider),

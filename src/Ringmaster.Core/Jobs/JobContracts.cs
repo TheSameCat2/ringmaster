@@ -4,6 +4,7 @@ public interface IJobRepository
 {
     Task<StoredJob> CreateAsync(JobCreateRequest request, CancellationToken cancellationToken);
     Task<StoredJob?> GetAsync(string jobId, CancellationToken cancellationToken);
+    Task<JobStatusSnapshot?> GetStatusAsync(string jobId, CancellationToken cancellationToken);
     Task<IReadOnlyList<JobStatusListItem>> ListAsync(CancellationToken cancellationToken);
     Task<JobStatusSnapshot> RebuildStatusAsync(string jobId, CancellationToken cancellationToken);
     Task<JobStatusSnapshot> AppendEventAsync(string jobId, JobEventRecord jobEvent, CancellationToken cancellationToken);

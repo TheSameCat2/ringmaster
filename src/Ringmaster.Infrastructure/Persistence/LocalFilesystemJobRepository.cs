@@ -140,6 +140,17 @@ public sealed class LocalFilesystemJobRepository(
             .ToArray();
     }
 
+    public async Task<JobStatusSnapshot?> GetStatusAsync(string jobId, CancellationToken cancellationToken)
+    {
+        string jobRoot = RingmasterPaths.JobRoot(_repositoryRoot, jobId);
+        if (!Directory.Exists(jobRoot))
+        {
+            return null;
+        }
+
+        return await LoadStatusAsync(jobId, cancellationToken);
+    }
+
     public async Task<JobStatusSnapshot> RebuildStatusAsync(string jobId, CancellationToken cancellationToken)
     {
         IReadOnlyList<JobEventRecord> events = await jobEventLogStore.ReadAllAsync(RingmasterPaths.EventLogPath(_repositoryRoot, jobId), cancellationToken);
@@ -150,16 +161,14 @@ public sealed class LocalFilesystemJobRepository(
 
     public async Task<JobStatusSnapshot> AppendEventAsync(string jobId, JobEventRecord jobEvent, CancellationToken cancellationToken)
     {
-        IReadOnlyList<JobEventRecord> existingEvents = await jobEventLogStore.ReadAllAsync(RingmasterPaths.EventLogPath(_repositoryRoot, jobId), cancellationToken);
-        long nextSequence = existingEvents.Count == 0 ? 1 : existingEvents.Max(existingEvent => existingEvent.Sequence) + 1;
+        JobStatusSnapshot currentStatus = await LoadStatusAsync(jobId, cancellationToken);
+        long nextSequence = currentStatus.LastEventSequence + 1;
         JobEventRecord normalized = jobEvent with { Sequence = nextSequence };
 
         await jobEventLogStore.AppendAsync(RingmasterPaths.EventLogPath(_repositoryRoot, jobId), normalized, cancellationToken);
 
-        List<JobEventRecord> rebuiltEvents = existingEvents.ToList();
-        rebuiltEvents.Add(normalized);
-
-        JobStatusSnapshot rebuilt = snapshotRebuilder.Rebuild(rebuiltEvents);
+        JobStatusSnapshot rebuilt = snapshotRebuilder.Apply(currentStatus, normalized)
+            with { LastEventSequence = nextSequence };
         await atomicFileWriter.WriteJsonAsync(RingmasterPaths.StatusPath(_repositoryRoot, jobId), rebuilt, cancellationToken);
         return rebuilt;
     }
