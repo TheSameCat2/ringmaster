@@ -64,8 +64,8 @@ public static class OperatorExitCodes
         }
 
         return result.PullRequestStatus is PullRequestStatus.Failed
-            ? Failed
-            : ToolOrConfigError;
+            ? ToolOrConfigError
+            : Failed;
     }
 
     public static int FromCleanupResult(CleanupResult result)

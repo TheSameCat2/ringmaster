@@ -109,6 +109,7 @@ public sealed class PullRequestService(
         catch (Exception exception) when (exception is GitCliException or PullRequestProviderException)
         {
             string summary = BuildFailureSummary(exception);
+
             JobStatusSnapshot failureStatus = await jobRepository.AppendEventAsync(
                 job.Definition.JobId,
                 JobEventRecord.CreatePullRequestRecorded(
@@ -119,6 +120,23 @@ public sealed class PullRequestService(
                     summary,
                     timeProvider.GetUtcNow()),
                 cancellationToken);
+
+            if (job.Status.State is JobState.READY_FOR_PR)
+            {
+                stateMachine.EnsureCanTransition(JobState.READY_FOR_PR, JobState.BLOCKED);
+                failureStatus = await jobRepository.AppendEventAsync(
+                    job.Definition.JobId,
+                    JobEventRecord.CreateBlocked(
+                        job.Definition.JobId,
+                        new BlockerInfo
+                        {
+                            ReasonCode = BlockerReasonCode.MissingCredential,
+                            Summary = summary,
+                            ResumeState = JobState.READY_FOR_PR,
+                        },
+                        timeProvider.GetUtcNow()),
+                    cancellationToken);
+            }
 
             return new PullRequestOperationResult
             {
