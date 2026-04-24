@@ -123,7 +123,6 @@ public sealed class PhaseSixIntegrationTests
             new CompositeNotificationSink(
             [
                 new JsonlNotificationSink(repositoryRoot),
-                new WebhookPlaceholderNotificationSink(),
             ]),
             CreateJobEngine(repository, timeProvider),
             timeProvider);

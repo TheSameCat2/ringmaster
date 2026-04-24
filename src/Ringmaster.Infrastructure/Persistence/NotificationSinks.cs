@@ -51,11 +51,4 @@ public sealed class JsonlNotificationSink(string repositoryRoot) : INotification
     }
 }
 
-public sealed class WebhookPlaceholderNotificationSink : INotificationSink
-{
-    public Task NotifyAsync(NotificationRecord notification, CancellationToken cancellationToken)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        return Task.CompletedTask;
-    }
-}
+

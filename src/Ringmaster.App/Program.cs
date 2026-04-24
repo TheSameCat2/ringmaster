@@ -1,8 +1,10 @@
-﻿using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Ringmaster.App;
 using Ringmaster.App.CommandLine;
 using Ringmaster.Codex;
+using Ringmaster.Core;
+using Ringmaster.Core.Configuration;
 using Ringmaster.Core.Jobs;
 using Ringmaster.Git;
 using Ringmaster.GitHub;
@@ -100,15 +102,41 @@ builder.Services.AddSingleton<JsonlNotificationSink>(serviceProvider =>
     RingmasterApplicationContext applicationContext = serviceProvider.GetRequiredService<RingmasterApplicationContext>();
     return new JsonlNotificationSink(applicationContext.RepositoryRoot);
 });
-builder.Services.AddSingleton<WebhookPlaceholderNotificationSink>();
 builder.Services.AddSingleton<INotificationSink>(serviceProvider =>
 {
-    return new CompositeNotificationSink(
+    List<INotificationSink> sinks =
     [
         serviceProvider.GetRequiredService<ConsoleNotificationSink>(),
         serviceProvider.GetRequiredService<JsonlNotificationSink>(),
-        serviceProvider.GetRequiredService<WebhookPlaceholderNotificationSink>(),
-    ]);
+    ];
+
+    RingmasterApplicationContext applicationContext = serviceProvider.GetRequiredService<RingmasterApplicationContext>();
+    RingmasterRepoConfigLoader configLoader = serviceProvider.GetRequiredService<RingmasterRepoConfigLoader>();
+    string configPath = Path.Combine(applicationContext.RepositoryRoot, ProductInfo.RepoConfigFileName);
+
+    if (File.Exists(configPath))
+    {
+        try
+        {
+            RingmasterRepoConfig config = configLoader.LoadAsync(applicationContext.RepositoryRoot, CancellationToken.None).GetAwaiter().GetResult();
+            if (config.Webhook is not null)
+            {
+                var validator = new WebhookUrlValidator(new WebhookUrlSecurityPolicy
+                {
+                    AllowLocalhost = config.Webhook.AllowLocalhost,
+                    AllowPrivateAddresses = config.Webhook.AllowPrivateAddresses,
+                });
+                sinks.Add(new WebhookNotificationSink(config.Webhook, validator));
+            }
+        }
+        catch
+        {
+            // If the repository config is unreadable or the webhook URL is invalid,
+            // do not crash startup. The operator can fix the config and restart.
+        }
+    }
+
+    return new CompositeNotificationSink(sinks);
 });
 builder.Services.AddSingleton<IStateMachine, RingmasterStateMachine>();
 builder.Services.AddSingleton<IStageRunner>(serviceProvider =>

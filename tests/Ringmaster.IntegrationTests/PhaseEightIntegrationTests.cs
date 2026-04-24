@@ -83,7 +83,7 @@ public sealed class PhaseEightIntegrationTests
         QueueProcessor queueProcessor = new(
             new LocalFilesystemQueueSelector(repository, leaseManager),
             leaseManager,
-            new WebhookPlaceholderNotificationSink(),
+            new CompositeNotificationSink([]),
             new JobEngine(
                 repository,
                 new RingmasterStateMachine(),

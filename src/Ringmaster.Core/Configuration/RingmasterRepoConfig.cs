@@ -4,6 +4,7 @@ public sealed record class RingmasterRepoConfig
 {
     public int SchemaVersion { get; init; } = ProductInfo.SchemaVersion;
     public string BaseBranch { get; init; } = "master";
+    public WebhookNotificationConfig? Webhook { get; init; }
     public IReadOnlyDictionary<string, VerificationProfileDefinition> VerificationProfiles { get; init; }
         = new Dictionary<string, VerificationProfileDefinition>(StringComparer.OrdinalIgnoreCase);
 }

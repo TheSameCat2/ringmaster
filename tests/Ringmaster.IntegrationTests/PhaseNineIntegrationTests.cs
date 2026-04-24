@@ -378,7 +378,7 @@ public sealed class PhaseNineIntegrationTests
         QueueProcessor queueProcessor = new(
             new LocalFilesystemQueueSelector(effectiveRepository, leaseManager),
             leaseManager,
-            new WebhookPlaceholderNotificationSink(),
+            new CompositeNotificationSink([]),
             jobEngine,
             timeProvider);
         IPullRequestService effectivePullRequestService = pullRequestService ?? new DelegatePullRequestService(effectiveRepository);

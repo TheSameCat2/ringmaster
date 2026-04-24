@@ -111,7 +111,7 @@ public sealed class QueueRecoveryFaultInjectionTests
         QueueProcessor queueProcessor = new(
             new LocalFilesystemQueueSelector(repository, leaseManager),
             leaseManager,
-            new WebhookPlaceholderNotificationSink(),
+            new CompositeNotificationSink([]),
             CreateJobEngine(repository, timeProvider),
             timeProvider);
 
@@ -135,7 +135,7 @@ public sealed class QueueRecoveryFaultInjectionTests
         return new QueueProcessor(
             new LocalFilesystemQueueSelector(repository, leaseManager),
             leaseManager,
-            new WebhookPlaceholderNotificationSink(),
+            new CompositeNotificationSink([]),
             CreateJobEngine(repository, timeProvider),
             timeProvider);
     }
