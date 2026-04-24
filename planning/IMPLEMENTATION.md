@@ -1149,3 +1149,39 @@ Tests: dotnet build Ringmaster.sln; dotnet test Ringmaster.sln
 Files: src/Ringmaster.Core/Jobs/JobStatusSnapshot.cs; src/Ringmaster.Core/Jobs/JobSnapshotRebuilder.cs; src/Ringmaster.Core/Jobs/JobContracts.cs; src/Ringmaster.Infrastructure/Persistence/LocalFilesystemJobRepository.cs; src/Ringmaster.Infrastructure/Persistence/LocalFilesystemQueueSelector.cs; src/Ringmaster.Infrastructure/Persistence/NotificationSinks.cs; src/Ringmaster.App/Program.cs; tests/Ringmaster.Core.Tests/JobSnapshotRebuilderTests.cs; tests/Ringmaster.IntegrationTests/PhaseSixIntegrationTests.cs; samples/sample-repo/.gitignore
 Follow-ups: None.
 ```
+
+```text
+2026-04-24 00:15 UTC
+Packet: Cleanup - remove stale placeholder test and unused CLI flag
+Summary: Removed PhaseZeroPlaceholderTests.cs (stale since real fault-injection tests were added). Removed --watch option from queue run command; the command is inherently long-running and the flag was declared but never referenced.
+Tests: dotnet build Ringmaster.sln; dotnet test Ringmaster.sln
+Files: tests/Ringmaster.FaultInjectionTests/PhaseZeroPlaceholderTests.cs; src/Ringmaster.App/CommandLine/RingmasterCli.cs
+Follow-ups: None.
+```
+
+```text
+2026-04-24 00:30 UTC
+Packet: Implement secure webhook notification sink
+Summary: Replaced WebhookPlaceholderNotificationSink with real HTTP delivery. Added WebhookNotificationConfig and WebhookUrlSecurityPolicy with SSRF prevention (blocks loopback, link-local, private ranges, multicast, broadcast, AWS metadata by default). Implemented WebhookNotificationSink with bounded retry, no-auto-redirect, Bearer and HMAC-SHA256 auth (secrets from env vars only), event-type filtering, and swallow-after-retry so misconfigured webhooks cannot block jobs. Conditionally registers from repo config at startup. Added 21 URL validator tests and 7 sink integration tests.
+Tests: dotnet build Ringmaster.sln; dotnet test Ringmaster.sln
+Files: src/Ringmaster.Core/Configuration/WebhookNotificationConfig.cs; src/Ringmaster.Core/Configuration/WebhookUrlSecurityPolicy.cs; src/Ringmaster.Infrastructure/Persistence/WebhookNotificationSink.cs; src/Ringmaster.Infrastructure/Persistence/WebhookUrlValidator.cs; src/Ringmaster.Core/Configuration/RingmasterRepoConfig.cs; src/Ringmaster.App/Program.cs; src/Ringmaster.Infrastructure/Persistence/NotificationSinks.cs; tests/Ringmaster.Core.Tests/WebhookUrlValidatorTests.cs; tests/Ringmaster.IntegrationTests/WebhookNotificationSinkTests.cs
+Follow-ups: None.
+```
+
+```text
+2026-04-24 00:45 UTC
+Packet: Implement resource-class semaphores for queue dispatch
+Summary: Added ResourceClass enum (Codex, Verification, PullRequest) and ResourceClassifier mapping from JobState. Added IResourceGate interface and CoreSemaphoreResourceGate implementation. Extended QueueRunOptions with MaxConcurrentCodexRuns, MaxConcurrentVerificationRuns, MaxConcurrentPrOperations. Updated QueueProcessor to acquire resource slots before dispatch and release in finally blocks. Added CLI options --max-codex, --max-verify, --max-pr to queue once and queue run. Added 6 unit tests and 2 integration tests.
+Tests: dotnet build Ringmaster.sln; dotnet test Ringmaster.sln
+Files: src/Ringmaster.Core/Jobs/ResourceClass.cs; src/Ringmaster.Core/Jobs/IResourceGate.cs; src/Ringmaster.Core/Jobs/ResourceGateLimits.cs; src/Ringmaster.Core/Jobs/CoreSemaphoreResourceGate.cs; src/Ringmaster.Core/Jobs/QueueProcessor.cs; src/Ringmaster.Core/Jobs/QueueContracts.cs; src/Ringmaster.App/CommandLine/RingmasterCli.cs; src/Ringmaster.App/Program.cs; tests/Ringmaster.Core.Tests/CoreSemaphoreResourceGateTests.cs; tests/Ringmaster.IntegrationTests/ResourceGateIntegrationTests.cs
+Follow-ups: None.
+```
+
+```text
+2026-04-24 00:55 UTC
+Packet: Fix PR publish failure handling and exit code mapping
+Summary: When PullRequestService.PublishCoreAsync catches GitCliException or PullRequestProviderException, the job now transitions to BLOCKED with BlockerReasonCode.MissingCredential and ResumeState = READY_FOR_PR (per PRODUCT.md §3.2). Fixed OperatorExitCodes.FromPullRequestResult to map PR failures to ToolOrConfigError (30) instead of Failed (20).
+Tests: dotnet build Ringmaster.sln; dotnet test Ringmaster.sln
+Files: src/Ringmaster.GitHub/PullRequestService.cs; src/Ringmaster.App/OperatorExitCodes.cs
+Follow-ups: None.
+```
