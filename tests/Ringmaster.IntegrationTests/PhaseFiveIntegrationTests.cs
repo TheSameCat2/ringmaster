@@ -481,7 +481,7 @@ public sealed class PhaseFiveIntegrationTests
                     agentRunner,
                     promptBuilder,
                     atomicFileWriter),
-                new ImplementingStageRunner(agentRunner, promptBuilder, atomicFileWriter),
+                new ImplementingStageRunner(agentRunner, promptBuilder, atomicFileWriter, gitCli),
                 new VerifyingStageRunner(
                     repositoryRoot,
                     repoConfigLoader,
@@ -493,7 +493,7 @@ public sealed class PhaseFiveIntegrationTests
                     timeProvider,
                     new DeterministicFailureClassifier(),
                     new RepairLoopPolicyEvaluator(repairLoopPolicy)),
-                new RepairingStageRunner(agentRunner, promptBuilder, atomicFileWriter, repairLoopPolicy),
+                new RepairingStageRunner(agentRunner, promptBuilder, atomicFileWriter, repairLoopPolicy, gitCli),
                 new ReviewingStageRunner(agentRunner, promptBuilder, atomicFileWriter, new PullRequestDraftBuilder(atomicFileWriter)),
             ],
             timeProvider);

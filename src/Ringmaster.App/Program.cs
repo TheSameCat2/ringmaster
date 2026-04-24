@@ -152,7 +152,8 @@ builder.Services.AddSingleton<IStageRunner>(serviceProvider =>
     return new ImplementingStageRunner(
         serviceProvider.GetRequiredService<IAgentRunner>(),
         serviceProvider.GetRequiredService<CodexPromptBuilder>(),
-        serviceProvider.GetRequiredService<AtomicFileWriter>());
+        serviceProvider.GetRequiredService<AtomicFileWriter>(),
+        serviceProvider.GetRequiredService<GitCli>());
 });
 builder.Services.AddSingleton<IStageRunner>(serviceProvider =>
 {
@@ -175,7 +176,8 @@ builder.Services.AddSingleton<IStageRunner>(serviceProvider =>
         serviceProvider.GetRequiredService<IAgentRunner>(),
         serviceProvider.GetRequiredService<CodexPromptBuilder>(),
         serviceProvider.GetRequiredService<AtomicFileWriter>(),
-        serviceProvider.GetRequiredService<RepairLoopPolicy>());
+        serviceProvider.GetRequiredService<RepairLoopPolicy>(),
+        serviceProvider.GetRequiredService<GitCli>());
 });
 builder.Services.AddSingleton<IStageRunner>(serviceProvider =>
 {

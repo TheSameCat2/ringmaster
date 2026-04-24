@@ -31,6 +31,7 @@ public sealed class CodexPromptBuilder
         - Do not commit or open PRs.
         - Do not generate images, diagrams, or visual artifacts.
         - Return only JSON output matching the provided schema exactly.
+        - If the task is obviously invalid or the repository is unsupported, return a failed result.
         - If you need human input, return a blocked result with questions.
 
         Completion checklist:
@@ -208,7 +209,7 @@ public sealed class CodexPromptBuilder
           "additionalProperties": false,
           "required": ["result", "summary", "planMarkdown", "needsHuman", "questions", "blockerReasonCode", "blockerSummary"],
           "properties": {
-            "result": { "type": "string", "enum": ["completed", "blocked"] },
+            "result": { "type": "string", "enum": ["completed", "blocked", "failed"] },
             "summary": { "type": "string" },
             "planMarkdown": { "type": "string" },
             "needsHuman": { "type": "boolean" },

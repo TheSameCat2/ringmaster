@@ -1,5 +1,6 @@
 using Ringmaster.Core.Jobs;
 using Ringmaster.Core.Serialization;
+using Ringmaster.Git;
 using Ringmaster.Infrastructure.Persistence;
 
 namespace Ringmaster.Codex;
@@ -8,7 +9,8 @@ public sealed class RepairingStageRunner(
     IAgentRunner agentRunner,
     CodexPromptBuilder promptBuilder,
     AtomicFileWriter atomicFileWriter,
-    RepairLoopPolicy repairLoopPolicy) : IStageRunner
+    RepairLoopPolicy repairLoopPolicy,
+    GitCli gitCli) : IStageRunner
 {
     public JobStage Stage => JobStage.REPAIRING;
     public StageRole Role => StageRole.Implementer;
@@ -45,7 +47,9 @@ public sealed class RepairingStageRunner(
         string worktreePath = context.Job.Status.Git?.WorktreePath
             ?? throw new InvalidOperationException("Repair run requires a prepared worktree.");
         AgentPromptDefinition prompt = promptBuilder.BuildRepairPrompt(context);
-        AgentExecutionResult agentResult = await agentRunner.RunAsync(
+
+        AgentExecutionResult agentResult = await ImplementingStageRunner.RunWithRetryAsync(
+            agentRunner,
             new AgentExecutionRequest
             {
                 Kind = AgentRunKind.Repairer,
@@ -56,13 +60,25 @@ public sealed class RepairingStageRunner(
                 OutputSchemaJson = prompt.OutputSchemaJson,
                 SandboxMode = AgentSandboxMode.WorkspaceWrite,
             },
+            context.RunDirectoryPath,
+            atomicFileWriter,
             cancellationToken);
 
-        if (agentResult.ExitCode != 0)
+        if (agentResult.ExitCode != 0 || agentResult.TimedOut)
         {
             return StageExecutionResult.Failed(
                 FailureCategory.ToolFailure,
-                $"Repair Codex run failed with exit code {agentResult.ExitCode}.",
+                $"Repair Codex run failed after retries (exit code {agentResult.ExitCode}, timed out: {agentResult.TimedOut}).",
+                artifacts: agentResult.Artifacts,
+                sessionId: agentResult.SessionId,
+                exitCode: agentResult.ExitCode);
+        }
+
+        if (string.IsNullOrWhiteSpace(agentResult.FinalOutputText))
+        {
+            return StageExecutionResult.Failed(
+                FailureCategory.AgentProtocolFailure,
+                "Repair Codex run produced no structured output after retries.",
                 artifacts: agentResult.Artifacts,
                 sessionId: agentResult.SessionId,
                 exitCode: agentResult.ExitCode);
@@ -73,10 +89,43 @@ public sealed class RepairingStageRunner(
 
         if (IsBlocked(output))
         {
+            GitStatusInfo statusInfo = await gitCli.CaptureStatusAsync(worktreePath, cancellationToken);
+            if (statusInfo.HasUncommittedChanges)
+            {
+                return StageExecutionResult.Succeeded(
+                    JobState.VERIFYING,
+                    $"Repairer reported blocked but made changes to {statusInfo.ChangedFiles.Count} file(s). Proceeding to verification. Original summary: {output.Summary}",
+                    artifacts: agentResult.Artifacts,
+                    sessionId: agentResult.SessionId,
+                    exitCode: agentResult.ExitCode);
+            }
+
             return StageExecutionResult.Blocked(
                 CreateBlocker(output),
                 output.BlockerSummary ?? output.Summary,
                 artifacts: agentResult.Artifacts,
+                sessionId: agentResult.SessionId,
+                exitCode: agentResult.ExitCode);
+        }
+
+        GitStatusInfo repairStatusInfo = await gitCli.CaptureStatusAsync(worktreePath, cancellationToken);
+        if (!repairStatusInfo.HasUncommittedChanges)
+        {
+            return StageExecutionResult.Blocked(
+                new BlockerInfo
+                {
+                    ReasonCode = BlockerReasonCode.RepeatedFailureSignature,
+                    Summary = "Repairer completed but produced no filesystem changes. No progress was made.",
+                    Questions =
+                    [
+                        "Review the failure summary and decide whether the repair plan needs to change.",
+                    ],
+                    ResumeState = JobState.REPAIRING,
+                },
+                "Repairer completed but produced no filesystem changes.",
+                artifacts: agentResult.Artifacts,
+                failureCategory: FailureCategory.AgentProtocolFailure,
+                failureSignature: "repair:no-progress",
                 sessionId: agentResult.SessionId,
                 exitCode: agentResult.ExitCode);
         }

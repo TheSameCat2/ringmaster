@@ -38,6 +38,7 @@ public sealed class CodexAgentRunner(
         return new AgentExecutionResult
         {
             ExitCode = result.ExitCode,
+            TimedOut = result.TimedOut,
             SessionId = result.SessionId,
             FinalOutputText = result.FinalOutputText,
             Artifacts = new RunArtifacts

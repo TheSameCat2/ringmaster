@@ -42,6 +42,7 @@ public sealed record class AgentExecutionRequest
 public sealed record class AgentExecutionResult
 {
     public int ExitCode { get; init; }
+    public bool TimedOut { get; init; }
     public string? SessionId { get; init; }
     public string? FinalOutputText { get; init; }
     public RunArtifacts Artifacts { get; init; } = new();
@@ -65,6 +66,7 @@ public sealed record class CodexExecRequest
 public sealed record class CodexExecResult
 {
     public int ExitCode { get; init; }
+    public bool TimedOut { get; init; }
     public string? SessionId { get; init; }
     public string? FinalOutputText { get; init; }
 }

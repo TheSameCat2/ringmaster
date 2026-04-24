@@ -86,7 +86,7 @@ public sealed class PhaseFourIntegrationTests
             new RingmasterStateMachine(),
             [
                 new PlanningStageRunner(preparationService, agentRunner, promptBuilder, new AtomicFileWriter()),
-                new ImplementingStageRunner(agentRunner, promptBuilder, new AtomicFileWriter()),
+                new ImplementingStageRunner(agentRunner, promptBuilder, new AtomicFileWriter(), new GitCli(new ExternalProcessRunner(timeProvider))),
                 new VerifyingStageRunner(
                     repositoryRoot.Path,
                     new RingmasterRepoConfigLoader(),

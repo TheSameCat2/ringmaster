@@ -1,4 +1,5 @@
 using System.CommandLine;
+using System.Diagnostics;
 using Ringmaster.Core.Jobs;
 using Ringmaster.Core.Serialization;
 using Ringmaster.Git;
@@ -818,6 +819,13 @@ public sealed class RingmasterCli(
                 return OperatorExitCodes.ToolOrConfigError;
             }
 
+            bool opened = TryOpenPath(worktreePath!);
+            if (!opened)
+            {
+                console.MarkupLine($"[yellow]Unable to open a graphical file manager.[/] Copy-paste this command:");
+                console.MarkupLine($"[dim]{Markup.Escape(GetOpenShellCommand(worktreePath!))}[/]");
+            }
+
             console.MarkupLine(Markup.Escape(worktreePath!));
             return OperatorExitCodes.Success;
         });
@@ -937,5 +945,43 @@ public sealed class RingmasterCli(
         return value.Length <= maxLength
             ? value
             : value[..Math.Max(0, maxLength - 3)] + "...";
+    }
+
+    private static bool TryOpenPath(string path)
+    {
+        try
+        {
+            Process? process = Process.Start(new ProcessStartInfo
+            {
+                FileName = path,
+                UseShellExecute = true,
+            });
+            if (process is not null)
+            {
+                process.Dispose();
+                return true;
+            }
+
+            return false;
+        }
+        catch (Exception exception) when (exception is InvalidOperationException or System.ComponentModel.Win32Exception or PlatformNotSupportedException)
+        {
+            return false;
+        }
+    }
+
+    private static string GetOpenShellCommand(string path)
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return $"explorer \"{path}\"";
+        }
+
+        if (OperatingSystem.IsMacOS())
+        {
+            return $"open \"{path}\"";
+        }
+
+        return $"xdg-open \"{path}\"";
     }
 }

@@ -63,6 +63,7 @@ public sealed class VerifyingStageRunner(
             return BlockedForMissingConfig($"Verification profile '{verificationProfile}' is not configured.");
         }
 
+        const int MaxTransientRetries = 3;
         List<VerificationCommandRecord> commandRecords = [];
         ExternalProcessResult? failure = null;
         VerificationCommandDefinition? failureDefinition = null;
@@ -75,42 +76,80 @@ public sealed class VerifyingStageRunner(
                 return BlockedForMissingConfig(reason);
             }
 
-            string baseName = $"{index + 1:D2}-{SanitizeFileName(command.Name)}";
-            string stdoutPath = Path.Combine(context.RunDirectoryPath, $"{baseName}.log");
-            string stderrPath = Path.Combine(context.RunDirectoryPath, $"{baseName}.stderr.log");
+            string baseName = SanitizeFileName(command.Name);
+            string resultsDirectory = Path.Combine(context.RunDirectoryPath, "results");
+            ExternalProcessResult? lastResult = null;
+            string? lastStdoutPath = null;
+            string? lastStderrPath = null;
 
-            ExternalProcessResult result = await processRunner.RunAsync(
-                new ExternalProcessSpec
+            for (int attempt = 0; attempt <= MaxTransientRetries; attempt++)
+            {
+                string attemptSuffix = attempt == 0 ? string.Empty : $"-retry-{attempt}";
+                string stdoutPath = Path.Combine(resultsDirectory, $"{baseName}{attemptSuffix}.log");
+                string stderrPath = Path.Combine(resultsDirectory, $"{baseName}{attemptSuffix}.stderr.log");
+
+                ExternalProcessResult result = await processRunner.RunAsync(
+                    new ExternalProcessSpec
+                    {
+                        FileName = command.FileName,
+                        Arguments = command.Arguments,
+                        WorkingDirectory = worktreePath,
+                        Timeout = TimeSpan.FromSeconds(command.TimeoutSeconds),
+                        StdoutPath = stdoutPath,
+                        StderrPath = stderrPath,
+                    },
+                    cancellationToken);
+
+                lastResult = result;
+                lastStdoutPath = stdoutPath;
+                lastStderrPath = stderrPath;
+
+                if (!result.TimedOut && result.ExitCode == 0)
                 {
-                    FileName = command.FileName,
-                    Arguments = command.Arguments,
-                    WorkingDirectory = worktreePath,
-                    Timeout = TimeSpan.FromSeconds(command.TimeoutSeconds),
-                    StdoutPath = stdoutPath,
-                    StderrPath = stderrPath,
-                },
-                cancellationToken);
+                    break;
+                }
 
+                if (attempt < MaxTransientRetries)
+                {
+                    FailureClassification classification = await ClassifyTransientAsync(
+                        context,
+                        command,
+                        result,
+                        stdoutPath,
+                        stderrPath,
+                        cancellationToken);
+
+                    if (classification.Category == FailureCategory.TransientError)
+                    {
+                        await Task.Delay(TimeSpan.FromSeconds(Math.Pow(2, attempt)), cancellationToken);
+                        continue;
+                    }
+                }
+
+                break;
+            }
+
+            ExternalProcessResult finalResult = lastResult!;
             commandRecords.Add(new VerificationCommandRecord
             {
-                TimestampUtc = result.StartedAtUtc,
+                TimestampUtc = finalResult.StartedAtUtc,
                 RunId = context.Run.RunId,
                 JobId = context.Job.Definition.JobId,
                 WorkingDirectory = worktreePath,
                 FileName = command.FileName,
                 Arguments = command.Arguments,
-                EnvironmentVariableNamesUsed = result.EnvironmentVariableNames,
+                EnvironmentVariableNamesUsed = finalResult.EnvironmentVariableNames,
                 TimeoutSeconds = command.TimeoutSeconds,
-                ExitCode = result.ExitCode,
-                DurationMs = (result.CompletedAtUtc - result.StartedAtUtc).TotalMilliseconds,
-                TimedOut = result.TimedOut,
-                StdoutPath = Path.GetFileName(stdoutPath),
-                StderrPath = Path.GetFileName(stderrPath),
+                ExitCode = finalResult.ExitCode,
+                DurationMs = (finalResult.CompletedAtUtc - finalResult.StartedAtUtc).TotalMilliseconds,
+                TimedOut = finalResult.TimedOut,
+                StdoutPath = lastStdoutPath is not null ? Path.GetRelativePath(context.RunDirectoryPath, lastStdoutPath) : null,
+                StderrPath = lastStderrPath is not null ? Path.GetRelativePath(context.RunDirectoryPath, lastStderrPath) : null,
             });
 
-            if (result.TimedOut || result.ExitCode != 0)
+            if (finalResult.TimedOut || finalResult.ExitCode != 0)
             {
-                failure = result;
+                failure = finalResult;
                 failureDefinition = command;
                 break;
             }
@@ -140,7 +179,14 @@ public sealed class VerifyingStageRunner(
                 classification,
                 cancellationToken);
 
-            VerificationFailureDisposition disposition = repairLoopPolicyEvaluator.Decide(context.Job.Status, classification);
+            int totalSignatureOccurrences = context.Job.Events.Count(
+                jobEvent => jobEvent.Type == JobEventType.FailureRecorded
+                    && string.Equals(jobEvent.Signature, classification.Signature, StringComparison.Ordinal));
+
+            VerificationFailureDisposition disposition = repairLoopPolicyEvaluator.Decide(
+                context.Job.Status,
+                classification,
+                totalSignatureOccurrences);
 
             return disposition.Action switch
             {
@@ -231,6 +277,36 @@ public sealed class VerifyingStageRunner(
         {
             EventLog = Path.GetFileName(commandsPath),
         };
+    }
+
+    private async Task<FailureClassification> ClassifyTransientAsync(
+        StageExecutionContext context,
+        VerificationCommandDefinition command,
+        ExternalProcessResult result,
+        string stdoutPath,
+        string stderrPath,
+        CancellationToken cancellationToken)
+    {
+        string stdoutText = File.Exists(stdoutPath)
+            ? await File.ReadAllTextAsync(stdoutPath, cancellationToken)
+            : string.Empty;
+        string stderrText = File.Exists(stderrPath)
+            ? await File.ReadAllTextAsync(stderrPath, cancellationToken)
+            : string.Empty;
+
+        return failureClassifier.Classify(
+            new FailureClassificationContext
+            {
+                Stage = JobStage.VERIFYING,
+                CommandName = command.Name,
+                CommandFileName = command.FileName,
+                CommandArguments = command.Arguments,
+                ExitCode = result.ExitCode,
+                TimedOut = result.TimedOut,
+                StdoutText = stdoutText,
+                StderrText = stderrText,
+                ChangedFiles = context.Job.Status.Git?.ChangedFiles ?? [],
+            });
     }
 
     private async Task<FailureClassification> ClassifyFailureAsync(

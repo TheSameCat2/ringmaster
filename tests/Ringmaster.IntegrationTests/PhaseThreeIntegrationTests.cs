@@ -61,7 +61,7 @@ public sealed class PhaseThreeIntegrationTests
         string commandsLog = await File.ReadAllTextAsync(
             System.IO.Path.Combine(storedJob.JobDirectoryPath, "runs", "0003-verifying-system", "commands.jsonl"));
         Assert.Contains("\"fileName\":\"dotnet\"", commandsLog, StringComparison.Ordinal);
-        Assert.True(File.Exists(System.IO.Path.Combine(storedJob.JobDirectoryPath, "runs", "0003-verifying-system", "01-verify.log")));
+        Assert.True(File.Exists(System.IO.Path.Combine(storedJob.JobDirectoryPath, "runs", "0003-verifying-system", "results", "verify.log")));
     }
 
     [Fact]

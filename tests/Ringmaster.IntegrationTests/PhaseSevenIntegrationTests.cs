@@ -191,8 +191,9 @@ public sealed class PhaseSevenIntegrationTests
             CancellationToken.None);
 
         string runDirectory = Path.Combine(storedJob.JobDirectoryPath, "runs", "0001-verifying-system");
-        Directory.CreateDirectory(runDirectory);
-        string oldLogPath = Path.Combine(runDirectory, "01-verify.log");
+        string resultsDirectory = Path.Combine(runDirectory, "results");
+        Directory.CreateDirectory(resultsDirectory);
+        string oldLogPath = Path.Combine(resultsDirectory, "verify.log");
         string retainedJsonPath = Path.Combine(runDirectory, "run.json");
         await File.WriteAllTextAsync(oldLogPath, "old log");
         await File.WriteAllTextAsync(retainedJsonPath, "{}");

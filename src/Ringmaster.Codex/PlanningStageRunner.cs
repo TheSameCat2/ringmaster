@@ -77,6 +77,16 @@ public sealed class PlanningStageRunner(
             string.IsNullOrWhiteSpace(output.PlanMarkdown) ? "# Plan" + Environment.NewLine : output.PlanMarkdown,
             cancellationToken);
 
+        if (IsFailed(output))
+        {
+            return StageExecutionResult.Failed(
+                FailureCategory.AgentProtocolFailure,
+                output.Summary,
+                artifacts: agentResult.Artifacts,
+                sessionId: agentResult.SessionId,
+                exitCode: agentResult.ExitCode);
+        }
+
         if (IsBlocked(output))
         {
             return StageExecutionResult.Blocked(
@@ -103,6 +113,11 @@ public sealed class PlanningStageRunner(
         }
 
         return RingmasterJsonSerializer.Deserialize<T>(json);
+    }
+
+    private static bool IsFailed(PlannerAgentOutput output)
+    {
+        return string.Equals(output.Result, "failed", StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool IsBlocked(PlannerAgentOutput output)

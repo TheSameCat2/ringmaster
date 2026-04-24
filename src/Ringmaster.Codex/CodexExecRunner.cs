@@ -29,6 +29,7 @@ public sealed class CodexExecRunner(IExternalProcessRunner processRunner) : ICod
         return new CodexExecResult
         {
             ExitCode = processResult.ExitCode,
+            TimedOut = processResult.TimedOut,
             SessionId = ExtractSessionId(processResult.Stdout),
             FinalOutputText = finalOutputText,
         };

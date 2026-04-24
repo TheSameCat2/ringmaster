@@ -1,5 +1,6 @@
 using Ringmaster.Core.Jobs;
 using Ringmaster.Core.Serialization;
+using Ringmaster.Git;
 using Ringmaster.Infrastructure.Persistence;
 
 namespace Ringmaster.Codex;
@@ -7,7 +8,8 @@ namespace Ringmaster.Codex;
 public sealed class ImplementingStageRunner(
     IAgentRunner agentRunner,
     CodexPromptBuilder promptBuilder,
-    AtomicFileWriter atomicFileWriter) : IStageRunner
+    AtomicFileWriter atomicFileWriter,
+    GitCli gitCli) : IStageRunner
 {
     public JobStage Stage => JobStage.IMPLEMENTING;
     public StageRole Role => StageRole.Implementer;
@@ -26,7 +28,9 @@ public sealed class ImplementingStageRunner(
         string worktreePath = context.Job.Status.Git?.WorktreePath
             ?? throw new InvalidOperationException("Implementer run requires a prepared worktree.");
         AgentPromptDefinition prompt = promptBuilder.BuildImplementerPrompt(context);
-        AgentExecutionResult agentResult = await agentRunner.RunAsync(
+
+        AgentExecutionResult agentResult = await RunWithRetryAsync(
+            agentRunner,
             new AgentExecutionRequest
             {
                 Kind = AgentRunKind.Implementer,
@@ -37,13 +41,25 @@ public sealed class ImplementingStageRunner(
                 OutputSchemaJson = prompt.OutputSchemaJson,
                 SandboxMode = AgentSandboxMode.WorkspaceWrite,
             },
+            context.RunDirectoryPath,
+            atomicFileWriter,
             cancellationToken);
 
-        if (agentResult.ExitCode != 0)
+        if (agentResult.ExitCode != 0 || agentResult.TimedOut)
         {
             return StageExecutionResult.Failed(
                 FailureCategory.ToolFailure,
-                $"Implementer Codex run failed with exit code {agentResult.ExitCode}.",
+                $"Implementer Codex run failed after retries (exit code {agentResult.ExitCode}, timed out: {agentResult.TimedOut}).",
+                artifacts: agentResult.Artifacts,
+                sessionId: agentResult.SessionId,
+                exitCode: agentResult.ExitCode);
+        }
+
+        if (string.IsNullOrWhiteSpace(agentResult.FinalOutputText))
+        {
+            return StageExecutionResult.Failed(
+                FailureCategory.AgentProtocolFailure,
+                "Implementer Codex run produced no structured output after retries.",
                 artifacts: agentResult.Artifacts,
                 sessionId: agentResult.SessionId,
                 exitCode: agentResult.ExitCode);
@@ -54,6 +70,17 @@ public sealed class ImplementingStageRunner(
 
         if (IsBlocked(output))
         {
+            GitStatusInfo statusInfo = await gitCli.CaptureStatusAsync(worktreePath, cancellationToken);
+            if (statusInfo.HasUncommittedChanges)
+            {
+                return StageExecutionResult.Succeeded(
+                    JobState.VERIFYING,
+                    $"Implementer reported blocked but made changes to {statusInfo.ChangedFiles.Count} file(s). Proceeding to verification. Original summary: {output.Summary}",
+                    artifacts: agentResult.Artifacts,
+                    sessionId: agentResult.SessionId,
+                    exitCode: agentResult.ExitCode);
+            }
+
             return StageExecutionResult.Blocked(
                 CreateBlocker(output),
                 output.BlockerSummary ?? output.Summary,
@@ -130,5 +157,42 @@ public sealed class ImplementingStageRunner(
         return Enum.TryParse<BlockerReasonCode>(value, ignoreCase: true, out BlockerReasonCode reasonCode)
             ? reasonCode
             : BlockerReasonCode.HumanReviewRequired;
+    }
+
+    internal static async Task<AgentExecutionResult> RunWithRetryAsync(
+        IAgentRunner agentRunner,
+        AgentExecutionRequest request,
+        string runDirectoryPath,
+        AtomicFileWriter atomicFileWriter,
+        CancellationToken cancellationToken)
+    {
+        const int MaxRetries = 2;
+        AgentExecutionResult? lastResult = null;
+
+        for (int attempt = 0; attempt <= MaxRetries; attempt++)
+        {
+            AgentExecutionResult agentResult = await agentRunner.RunAsync(request, cancellationToken);
+            lastResult = agentResult;
+
+            bool isRecoverable = agentResult.ExitCode != 0
+                || agentResult.TimedOut
+                || string.IsNullOrWhiteSpace(agentResult.FinalOutputText);
+
+            if (!isRecoverable)
+            {
+                return agentResult;
+            }
+
+            if (attempt < MaxRetries)
+            {
+                await atomicFileWriter.WriteTextAsync(
+                    Path.Combine(runDirectoryPath, $"implementer-retry-{attempt + 1}.log"),
+                    $"Attempt {attempt + 1} failed: exitCode={agentResult.ExitCode}, timedOut={agentResult.TimedOut}, hasOutput={!string.IsNullOrWhiteSpace(agentResult.FinalOutputText)}",
+                    cancellationToken);
+                await Task.Delay(TimeSpan.FromSeconds(Math.Pow(2, attempt)), cancellationToken);
+            }
+        }
+
+        return lastResult!;
     }
 }

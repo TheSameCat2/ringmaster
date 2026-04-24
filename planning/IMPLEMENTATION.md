@@ -1185,3 +1185,20 @@ Tests: dotnet build Ringmaster.sln; dotnet test Ringmaster.sln
 Files: src/Ringmaster.GitHub/PullRequestService.cs; src/Ringmaster.App/OperatorExitCodes.cs
 Follow-ups: None.
 ```
+
+```text
+2026-04-24 17:00 UTC
+Packet: Lifecycle edge-case hardening (items 1-8 from divergence audit)
+Summary:
+  1. PREPARING → FAILED: PlannerAgentOutput schema now accepts "failed" result; PlanningStageRunner returns StageExecutionResult.Failed when planner detects invalid/unsupported tasks. Added 2 integration tests.
+  2. VERIFYING transient retry: DeterministicFailureClassifier now classifies timeouts and network/file-lock errors as TransientError. VerifyingStageRunner retries transient commands up to 3 times with exponential backoff. RepairLoopPolicyEvaluator blocks after persistent transient failures. Added 3 classifier unit tests.
+  3. IMPLEMENTING crash retry: Added TimedOut to AgentExecutionResult/CodexExecResult. ImplementingStageRunner and RepairingStageRunner retry non-zero-exit or empty-output runs up to 2 times. Added 2 implementer retry integration tests.
+  4. IMPLEMENTING blocked-with-changes: ImplementingStageRunner and RepairingStageRunner now verify git status when agent returns blocked; if changes exist, they proceed to VERIFYING instead of BLOCKING. Added 2 integration tests.
+  5. REPAIRING no-progress detection: RepairingStageRunner checks git status after repair completion; if no changes were made, returns BLOCKED immediately instead of looping through VERIFYING again.
+  6. VERIFYING nondeterminism detection: RepairLoopPolicyEvaluator now counts total failure signature occurrences across the entire job event history; if a signature appears MaxRepeatedFailureSignatures times total (not just consecutively), the job is blocked as potentially flaky.
+  7. results/ subdirectory: VerifyingStageRunner now writes verification log files to runs/<run-id>/results/ with names based on command name (no 01- prefix). Updated CleanupService and tests.
+  8. worktree open: worktree open command now attempts to open the directory via Process.Start with UseShellExecute=true; if that fails (e.g., headless), it prints a platform-appropriate shell command (xdg-open/open/explorer).
+Tests: dotnet build Ringmaster.sln; dotnet test Ringmaster.sln; ./src/Ringmaster.App/bin/Debug/net10.0/ringmaster --help
+Files: src/Ringmaster.Codex/CodexPromptBuilder.cs; src/Ringmaster.Codex/PlanningStageRunner.cs; src/Ringmaster.Codex/ImplementingStageRunner.cs; src/Ringmaster.Codex/RepairingStageRunner.cs; src/Ringmaster.Codex/CodexContracts.cs; src/Ringmaster.Codex/CodexExecRunner.cs; src/Ringmaster.Codex/CodexAgentRunner.cs; src/Ringmaster.Core/Jobs/DeterministicFailureClassifier.cs; src/Ringmaster.Core/Jobs/RepairLoopPolicyEvaluator.cs; src/Ringmaster.Git/VerifyingStageRunner.cs; src/Ringmaster.App/CommandLine/RingmasterCli.cs; src/Ringmaster.App/Program.cs; tests/Ringmaster.Core.Tests/DeterministicFailureClassifierTests.cs; tests/Ringmaster.IntegrationTests/PlanningStageRunnerTests.cs; tests/Ringmaster.IntegrationTests/ImplementingStageRunnerTests.cs; tests/Ringmaster.IntegrationTests/ImplementerBlockedWithChangesTests.cs; tests/Ringmaster.IntegrationTests/PhaseFourIntegrationTests.cs; tests/Ringmaster.IntegrationTests/PhaseFiveIntegrationTests.cs; tests/Ringmaster.IntegrationTests/PhaseThreeIntegrationTests.cs; tests/Ringmaster.IntegrationTests/PhaseSevenIntegrationTests.cs
+Follow-ups: None remaining from the divergence audit. All 8 edge-case items are now implemented and tested.
+```

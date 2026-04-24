@@ -2,10 +2,27 @@ namespace Ringmaster.Core.Jobs;
 
 public sealed class RepairLoopPolicyEvaluator(RepairLoopPolicy policy)
 {
-    public VerificationFailureDisposition Decide(JobStatusSnapshot status, FailureClassification classification)
+    public VerificationFailureDisposition Decide(JobStatusSnapshot status, FailureClassification classification, int totalSignatureOccurrences = 0)
     {
         ArgumentNullException.ThrowIfNull(status);
         ArgumentNullException.ThrowIfNull(classification);
+
+        if (classification.Category == FailureCategory.TransientError)
+        {
+            return VerificationFailureDisposition.Block(
+                classification,
+                new BlockerInfo
+                {
+                    ReasonCode = BlockerReasonCode.MissingConfiguration,
+                    Summary = $"Transient infrastructure failure '{classification.Signature}' persisted after retries. Verify external services or network state before resuming.",
+                    Questions =
+                    [
+                        "Check that external services (network, package registries, build caches) are healthy.",
+                        "Confirm the verification profile commands are available and correctly configured.",
+                    ],
+                    ResumeState = JobState.VERIFYING,
+                });
+        }
 
         if (classification.Category is not FailureCategory.RepairableCodeFailure)
         {
@@ -41,6 +58,23 @@ public sealed class RepairLoopPolicyEvaluator(RepairLoopPolicy policy)
                     Questions =
                     [
                         "Inspect the repeated failure and decide whether the plan or constraints need to change.",
+                    ],
+                    ResumeState = JobState.REPAIRING,
+                });
+        }
+
+        if (totalSignatureOccurrences >= policy.MaxRepeatedFailureSignatures)
+        {
+            return VerificationFailureDisposition.Block(
+                classification,
+                new BlockerInfo
+                {
+                    ReasonCode = BlockerReasonCode.RepeatedFailureSignature,
+                    Summary = $"Failure signature '{classification.Signature}' has appeared {totalSignatureOccurrences} times across the job history, suggesting a flaky or nondeterministic failure.",
+                    Questions =
+                    [
+                        "Consider whether the failing test or build step is deterministic.",
+                        "If the failure is flaky, the verification profile may need stabilization before resuming.",
                     ],
                     ResumeState = JobState.REPAIRING,
                 });
