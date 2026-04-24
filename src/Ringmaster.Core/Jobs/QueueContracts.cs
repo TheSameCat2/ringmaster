@@ -33,6 +33,9 @@ public sealed record class QueueJobCandidate
 public sealed record class QueueRunOptions
 {
     public int MaxParallelJobs { get; init; } = 1;
+    public int MaxConcurrentCodexRuns { get; init; } = 1;
+    public int MaxConcurrentVerificationRuns { get; init; } = 1;
+    public int MaxConcurrentPrOperations { get; init; } = 1;
     public TimeSpan LeaseHeartbeatInterval { get; init; } = TimeSpan.FromSeconds(2);
     public TimeSpan PollInterval { get; init; } = TimeSpan.FromSeconds(2);
     public TimeSpan StaleLeaseThreshold { get; init; } = TimeSpan.FromSeconds(10);

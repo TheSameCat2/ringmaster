@@ -520,9 +520,15 @@ public sealed class RingmasterCli(
     {
         Command command = new("once", "Run one scheduling pass.");
         Option<int> maxParallelOption = new("--max-parallel") { Description = "Maximum jobs to start in this pass.", DefaultValueFactory = _ => 1 };
+        Option<int> maxCodexOption = new("--max-codex") { Description = "Maximum concurrent Codex-backed stages.", DefaultValueFactory = _ => 1 };
+        Option<int> maxVerifyOption = new("--max-verify") { Description = "Maximum concurrent verification runs.", DefaultValueFactory = _ => 1 };
+        Option<int> maxPrOption = new("--max-pr") { Description = "Maximum concurrent PR operations.", DefaultValueFactory = _ => 1 };
         Option<bool> jsonOption = new("--json") { Description = "Emit JSON output." };
 
         command.Options.Add(maxParallelOption);
+        command.Options.Add(maxCodexOption);
+        command.Options.Add(maxVerifyOption);
+        command.Options.Add(maxPrOption);
         command.Options.Add(jsonOption);
 
         command.SetAction(async (parseResult, cancellationToken) =>
@@ -531,6 +537,9 @@ public sealed class RingmasterCli(
                 new QueueRunOptions
                 {
                     MaxParallelJobs = Math.Max(1, parseResult.GetValue(maxParallelOption)),
+                    MaxConcurrentCodexRuns = Math.Max(1, parseResult.GetValue(maxCodexOption)),
+                    MaxConcurrentVerificationRuns = Math.Max(1, parseResult.GetValue(maxVerifyOption)),
+                    MaxConcurrentPrOperations = Math.Max(1, parseResult.GetValue(maxPrOption)),
                     OwnerId = applicationContext.CurrentActor,
                 },
                 cancellationToken);
@@ -562,9 +571,15 @@ public sealed class RingmasterCli(
     {
         Command command = new("run", "Start the long-running worker loop.");
         Option<int> maxParallelOption = new("--max-parallel") { Description = "Maximum jobs to run concurrently.", DefaultValueFactory = _ => 1 };
+        Option<int> maxCodexOption = new("--max-codex") { Description = "Maximum concurrent Codex-backed stages.", DefaultValueFactory = _ => 1 };
+        Option<int> maxVerifyOption = new("--max-verify") { Description = "Maximum concurrent verification runs.", DefaultValueFactory = _ => 1 };
+        Option<int> maxPrOption = new("--max-pr") { Description = "Maximum concurrent PR operations.", DefaultValueFactory = _ => 1 };
         Option<int> pollIntervalMsOption = new("--poll-interval-ms") { Description = "Delay between idle scheduling passes.", DefaultValueFactory = _ => 2000 };
 
         command.Options.Add(maxParallelOption);
+        command.Options.Add(maxCodexOption);
+        command.Options.Add(maxVerifyOption);
+        command.Options.Add(maxPrOption);
         command.Options.Add(pollIntervalMsOption);
 
         command.SetAction(async (parseResult, cancellationToken) =>
@@ -575,6 +590,9 @@ public sealed class RingmasterCli(
                     new QueueRunOptions
                     {
                         MaxParallelJobs = Math.Max(1, parseResult.GetValue(maxParallelOption)),
+                        MaxConcurrentCodexRuns = Math.Max(1, parseResult.GetValue(maxCodexOption)),
+                        MaxConcurrentVerificationRuns = Math.Max(1, parseResult.GetValue(maxVerifyOption)),
+                        MaxConcurrentPrOperations = Math.Max(1, parseResult.GetValue(maxPrOption)),
                         PollInterval = TimeSpan.FromMilliseconds(Math.Max(100, parseResult.GetValue(pollIntervalMsOption))),
                         OwnerId = applicationContext.CurrentActor,
                     },

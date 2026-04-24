@@ -12,14 +12,35 @@ public sealed class QueueProcessor(
     {
         ArgumentNullException.ThrowIfNull(options);
 
+        using IResourceGate resourceGate = new CoreSemaphoreResourceGate(new ResourceGateLimits
+        {
+            MaxCodexRuns = options.MaxConcurrentCodexRuns,
+            MaxVerificationRuns = options.MaxConcurrentVerificationRuns,
+            MaxPrOperations = options.MaxConcurrentPrOperations,
+        });
+
         DateTimeOffset startedAtUtc = timeProvider.GetUtcNow();
         IReadOnlyList<QueueJobCandidate> candidates = await queueSelector.SelectRunnableJobsAsync(startedAtUtc, options.StaleLeaseThreshold, cancellationToken);
-        QueueJobCandidate[] selected = candidates
-            .Take(Math.Max(1, options.MaxParallelJobs))
-            .ToArray();
+
+        List<(QueueJobCandidate Candidate, ResourceClass? ResourceClass)> selected = [];
+        foreach (QueueJobCandidate candidate in candidates)
+        {
+            if (selected.Count >= Math.Max(1, options.MaxParallelJobs))
+            {
+                break;
+            }
+
+            ResourceClass? resourceClass = ResourceClassifier.Classify(candidate.Job.Status.State);
+            if (resourceClass is not null && !resourceGate.TryAcquire(resourceClass.Value))
+            {
+                continue;
+            }
+
+            selected.Add((candidate, resourceClass));
+        }
 
         Task<QueueJobResult>[] tasks = selected
-            .Select(candidate => ProcessCandidateAsync(candidate, options, cancellationToken))
+            .Select(s => ProcessCandidateAsync(s.Candidate, s.ResourceClass, resourceGate, options, cancellationToken))
             .ToArray();
         QueueJobResult[] results = await Task.WhenAll(tasks);
 
@@ -57,112 +78,124 @@ public sealed class QueueProcessor(
 
     private async Task<QueueJobResult> ProcessCandidateAsync(
         QueueJobCandidate candidate,
+        ResourceClass? resourceClass,
+        IResourceGate resourceGate,
         QueueRunOptions options,
         CancellationToken cancellationToken)
     {
-        await using ILeaseHandle? jobLease = await leaseManager.TryAcquireJobLeaseAsync(candidate.Job, options.OwnerId, cancellationToken);
-        if (jobLease is null)
-        {
-            return new QueueJobResult
-            {
-                JobId = candidate.Job.Definition.JobId,
-                Disposition = QueueJobDisposition.SkippedLeaseHeld,
-                Summary = "Another worker already owns the job lease.",
-            };
-        }
-
-        await using ILeaseHandle? repoLease = await leaseManager.TryAcquireRepoMutationLeaseAsync(options.OwnerId, cancellationToken);
-        if (repoLease is null)
-        {
-            return new QueueJobResult
-            {
-                JobId = candidate.Job.Definition.JobId,
-                Disposition = QueueJobDisposition.SkippedRepoLocked,
-                Summary = "The repository mutation lock is currently held by another worker.",
-            };
-        }
-
-        using CancellationTokenSource heartbeatCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        Task heartbeatTask = MaintainHeartbeatsAsync(candidate.Job.Definition.JobId, jobLease, repoLease, options, heartbeatCancellation.Token);
-
         try
         {
-            await notificationSink.NotifyAsync(
-                new NotificationRecord
-                {
-                    TimestampUtc = timeProvider.GetUtcNow(),
-                    EventType = "job.started",
-                    JobId = candidate.Job.Definition.JobId,
-                    State = candidate.Job.Status.State,
-                    Summary = candidate.ResumeExistingState
-                        ? $"Resuming job from state {candidate.Job.Status.State}."
-                        : "Starting queued job.",
-                },
-                cancellationToken);
-
-            JobStatusSnapshot status = candidate.ResumeExistingState
-                ? await jobEngine.ResumeAsync(candidate.Job.Definition.JobId, cancellationToken)
-                : await jobEngine.RunAsync(candidate.Job.Definition.JobId, cancellationToken);
-            PullRequestOperationResult? publicationResult = null;
-
-            if (status.State is JobState.READY_FOR_PR && pullRequestService is not null)
+            await using ILeaseHandle? jobLease = await leaseManager.TryAcquireJobLeaseAsync(candidate.Job, options.OwnerId, cancellationToken);
+            if (jobLease is null)
             {
-                publicationResult = await pullRequestService.PublishIfConfiguredAsync(candidate.Job.Definition.JobId, cancellationToken);
-                status = publicationResult.Status;
+                return new QueueJobResult
+                {
+                    JobId = candidate.Job.Definition.JobId,
+                    Disposition = QueueJobDisposition.SkippedLeaseHeld,
+                    Summary = "Another worker already owns the job lease.",
+                };
             }
 
-            string summary = publicationResult is { Attempted: true }
-                ? publicationResult.Summary
-                : $"Job reached state {status.State}.";
-
-            await notificationSink.NotifyAsync(
-                new NotificationRecord
+            await using ILeaseHandle? repoLease = await leaseManager.TryAcquireRepoMutationLeaseAsync(options.OwnerId, cancellationToken);
+            if (repoLease is null)
+            {
+                return new QueueJobResult
                 {
-                    TimestampUtc = timeProvider.GetUtcNow(),
-                    EventType = "job.completed",
                     JobId = candidate.Job.Definition.JobId,
-                    State = status.State,
+                    Disposition = QueueJobDisposition.SkippedRepoLocked,
+                    Summary = "The repository mutation lock is currently held by another worker.",
+                };
+            }
+
+            using CancellationTokenSource heartbeatCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            Task heartbeatTask = MaintainHeartbeatsAsync(candidate.Job.Definition.JobId, jobLease, repoLease, options, heartbeatCancellation.Token);
+
+            try
+            {
+                await notificationSink.NotifyAsync(
+                    new NotificationRecord
+                    {
+                        TimestampUtc = timeProvider.GetUtcNow(),
+                        EventType = "job.started",
+                        JobId = candidate.Job.Definition.JobId,
+                        State = candidate.Job.Status.State,
+                        Summary = candidate.ResumeExistingState
+                            ? $"Resuming job from state {candidate.Job.Status.State}."
+                            : "Starting queued job.",
+                    },
+                    cancellationToken);
+
+                JobStatusSnapshot status = candidate.ResumeExistingState
+                    ? await jobEngine.ResumeAsync(candidate.Job.Definition.JobId, cancellationToken)
+                    : await jobEngine.RunAsync(candidate.Job.Definition.JobId, cancellationToken);
+                PullRequestOperationResult? publicationResult = null;
+
+                if (status.State is JobState.READY_FOR_PR && pullRequestService is not null)
+                {
+                    publicationResult = await pullRequestService.PublishIfConfiguredAsync(candidate.Job.Definition.JobId, cancellationToken);
+                    status = publicationResult.Status;
+                }
+
+                string summary = publicationResult is { Attempted: true }
+                    ? publicationResult.Summary
+                    : $"Job reached state {status.State}.";
+
+                await notificationSink.NotifyAsync(
+                    new NotificationRecord
+                    {
+                        TimestampUtc = timeProvider.GetUtcNow(),
+                        EventType = "job.completed",
+                        JobId = candidate.Job.Definition.JobId,
+                        State = status.State,
+                        Summary = summary,
+                    },
+                    cancellationToken);
+
+                return new QueueJobResult
+                {
+                    JobId = candidate.Job.Definition.JobId,
+                    Disposition = QueueJobDisposition.Started,
+                    FinalState = status.State,
                     Summary = summary,
-                },
-                cancellationToken);
-
-            return new QueueJobResult
+                };
+            }
+            catch (Exception exception) when (exception is InvalidOperationException or IOException)
             {
-                JobId = candidate.Job.Definition.JobId,
-                Disposition = QueueJobDisposition.Started,
-                FinalState = status.State,
-                Summary = summary,
-            };
-        }
-        catch (Exception exception) when (exception is InvalidOperationException or IOException)
-        {
-            await notificationSink.NotifyAsync(
-                new NotificationRecord
+                await notificationSink.NotifyAsync(
+                    new NotificationRecord
+                    {
+                        TimestampUtc = timeProvider.GetUtcNow(),
+                        EventType = "job.error",
+                        JobId = candidate.Job.Definition.JobId,
+                        Summary = exception.Message,
+                    },
+                    CancellationToken.None);
+
+                return new QueueJobResult
                 {
-                    TimestampUtc = timeProvider.GetUtcNow(),
-                    EventType = "job.error",
                     JobId = candidate.Job.Definition.JobId,
+                    Disposition = QueueJobDisposition.FailedToStart,
                     Summary = exception.Message,
-                },
-                CancellationToken.None);
-
-            return new QueueJobResult
+                };
+            }
+            finally
             {
-                JobId = candidate.Job.Definition.JobId,
-                Disposition = QueueJobDisposition.FailedToStart,
-                Summary = exception.Message,
-            };
+                await heartbeatCancellation.CancelAsync();
+                try
+                {
+                    await heartbeatTask;
+                }
+                catch (OperationCanceledException)
+                {
+                    // Normal shutdown path for the heartbeat loop.
+                }
+            }
         }
         finally
         {
-            await heartbeatCancellation.CancelAsync();
-            try
+            if (resourceClass is not null)
             {
-                await heartbeatTask;
-            }
-            catch (OperationCanceledException)
-            {
-                // Normal shutdown path for the heartbeat loop.
+                resourceGate.Release(resourceClass.Value);
             }
         }
     }
