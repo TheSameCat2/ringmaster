@@ -563,11 +563,9 @@ public sealed class RingmasterCli(
         Command command = new("run", "Start the long-running worker loop.");
         Option<int> maxParallelOption = new("--max-parallel") { Description = "Maximum jobs to run concurrently.", DefaultValueFactory = _ => 1 };
         Option<int> pollIntervalMsOption = new("--poll-interval-ms") { Description = "Delay between idle scheduling passes.", DefaultValueFactory = _ => 2000 };
-        Option<bool> watchOption = new("--watch") { Description = "Alias for the default long-running watch mode." };
 
         command.Options.Add(maxParallelOption);
         command.Options.Add(pollIntervalMsOption);
-        command.Options.Add(watchOption);
 
         command.SetAction(async (parseResult, cancellationToken) =>
         {
